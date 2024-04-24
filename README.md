@@ -1,2 +1,2 @@
 # Brain-Computer-Interfaces
-![Correlation Matrix]('correlation_matrix.png')_
+![Correlation Matrix](correlation_heatmap.png)_
