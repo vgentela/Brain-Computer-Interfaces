@@ -149,24 +149,35 @@ for plot,subject in enumerate(subjects ):
             plt.plot(t,ds_arr[situation,:,channel],label = (f"Chan {channel}"))
         plt.legend(loc='upper left')
         #Freq Domain
-        freq = np.arange(0,((fs/2)+1/fs),1/15)
-        #PSD = 10*np.log10(np.fft.rfft(ds_arr[situation,:,channel])**2)
-        #print (f'{situation},{channel}')
-        #plt.figure(num = num_of_situations+situation+4, clear=all)
+        T = 15
+        freq = np.arange(0,((fs/2)+1/fs),1/T)
         plt.figure()
         plt.suptitle(f"Raw Frequency Domain Subject {subject}  Hamilton {Hamilton}")
         plt.title(f"Situation {situation}, Valance = {labels[0][situation]}, Arousal ={labels[1][situation]} ")
         plt.ylabel("PSD (dB)")
         plt.ylim([0,65])
         plt.xlabel("Freq (Hz)")
+        alpha_band=np.zeros(14)
+        high_beta_band=np.zeros(14)        
+        
         for channel in range(14):
-            PSD = 10*np.log10(np.fft.rfft(ds_arr[situation,:,channel])**2)
+
+            PSD = 10*np.log10((np.fft.rfft(ds_arr[situation,:,channel]))**2)
             plt.plot(freq,PSD,label = (f"Chan {channel}"))
+            # Integrated and normalized
+            alpha_band[channel] = np.sum(PSD[8*T:12*T])/(12*T-8*T)  # 8 to 12 Hz
+            high_beta_band[channel] = np.sum(PSD[18*T:40*T])/(40*T-18*T) # 18 to 40 Hz
             print (f'{situation},{channel}')
             print(f'{PSD[0]}')
         plt.legend(loc='upper right')
-
-
+        plt.figure()
+        plt.plot(alpha_band,label = ("Alpha Band"))
+        plt.xlabel("Channel")
+        plt.plot(high_beta_band,label = ("Beta Band"))
+        plt.ylim([30,65])
+        plt.title (f'Power in the Bands Situation {situation} Subject {subject}')
+        plt.legend(loc='upper right')
+       
 #%% Topo Maps
 # Plot time average for a giving subject, situation
 
