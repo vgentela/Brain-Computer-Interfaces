@@ -150,8 +150,8 @@ for plot,subject in enumerate(subjects ):
         plt.legend(loc='upper left')
         #Freq Domain
         freq = np.arange(0,((fs/2)+1/fs),1/15)
-        PSD = 10*np.log10(np.fft.rfft(ds_arr[situation,:,channel])**2)
-        
+        #PSD = 10*np.log10(np.fft.rfft(ds_arr[situation,:,channel])**2)
+        #print (f'{situation},{channel}')
         #plt.figure(num = num_of_situations+situation+4, clear=all)
         plt.figure()
         plt.suptitle(f"Raw Frequency Domain Subject {subject}  Hamilton {Hamilton}")
@@ -160,8 +160,10 @@ for plot,subject in enumerate(subjects ):
         plt.ylim([0,65])
         plt.xlabel("Freq (Hz)")
         for channel in range(14):
-            
+            PSD = 10*np.log10(np.fft.rfft(ds_arr[situation,:,channel])**2)
             plt.plot(freq,PSD,label = (f"Chan {channel}"))
+            print (f'{situation},{channel}')
+            print(f'{PSD[0]}')
         plt.legend(loc='upper right')
 
 
