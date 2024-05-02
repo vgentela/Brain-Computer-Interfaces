@@ -8,11 +8,11 @@ The protocol for collecting this data consists of two stages: a psychotherapist 
 
 We've extracted the data from two different formats : h5py dataset object and .mat format. The following functions from the module [project_3.py](project_3.py) were used to perform data extraction.
 ``` 
-load_data_epoch_anxiety_levels is a function that takes directory(the path to data),subjects and electrodes(channels from which EEG data is to be extracted) as
+**load_data_epoch_anxiety_levels** is a function that takes directory(the path to data),subjects and electrodes(channels from which EEG data is to be extracted) as
 parameters and returns all the data pertaining to a subject(an array), the counts of subjects experiencing different degrees of anxiety and labels for classification.
 It also plots the Power Spectral Density of the EEG data in the 4-20Hz frequency band.
 
-loadedf is a function that takes directory and subjects as parameters and returns data across all the channels, names of channels and a dictionary
+**loadedf** is a function that takes directory and subjects as parameters and returns data across all the channels, names of channels and a dictionary
  of key: value pairs where keys represent different attributes of the retieved data that can be accessed.
 ```
 
