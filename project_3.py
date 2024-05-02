@@ -1,7 +1,7 @@
 """
 Name:       project3.py
 Revision:   1-May-2024
-Description: Functions necessary perform the requirements of BCI Project 3
+Description: Functions necessary to perform the requirements of BCI Project 3
 1) Load Data.  Data set is in two formats .mat and .edf
     a) Load data set from .mat file.  The mat file format requires the use of h5py
     b) Load data set from .mat file. 
@@ -171,7 +171,7 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
    Assumption: data from the .mat files
    Description:  Draft
       
-   Two methods of getting at the eeg data contained in the dataset: list, and nimpy array.
+   Two methods of getting at the eeg data contained in the dataset: list, and numpy array.
    The numpy array is perfrered method
    #TODO do I have the correct interpretation from our readme file , and the excel file?
 
