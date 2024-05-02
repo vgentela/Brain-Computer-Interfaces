@@ -6,7 +6,7 @@ This dataset can be used to explore the effects of stimuli on the anxiety levels
 
 The protocol for collecting this data consists of two stages: a psychotherapist reciting a stressful stimulus to the subject for 15 seconds and then having them imagine the situation for 15 seconds. Self-assessment establishes the stress levels the subject feels during this situation. This sequence is repeated for five more situations for a total of 6 runs. Baseline anxiety levels are established before and then again after testing.
 
-We've extracted the data from two different formats : h5py dataset object and .mat format. The following functions from the module [project_3.py](project_3.py) were used to perform data extraction.
+We've extracted the data from two different formats : h5py dataset object and .mat format. The following two functions from the module [project_3.py](project_3.py) were used to perform data extraction.
 
 **load_data_epoch_anxiety_levels**
 ``` 
