@@ -6,47 +6,21 @@ This dataset can be used to explore the effects of stimuli on the anxiety levels
 
 The protocol for collecting this data consists of two stages: a psychotherapist reciting a stressful stimulus to the subject for 15 seconds and then having them imagine the situation for 15 seconds. Self-assessment establishes the stress levels the subject feels during this situation. This sequence is repeated for five more situations for a total of 6 runs. Baseline anxiety levels are established before and then again after testing.
 
-Weve extracted the data into an h5py dataset object using the following code:
+We've extracted the data from two different formats : h5py dataset object and .mat format. The following functions from the module [project_3.py](project_3.py) were used to perform data extraction.
+``` 
+`load_data_epoch_anxiety_levels` is a function that takes directory(the path to data),subjects and electrodes(channels from which EEG data is to be extracted) as parameters and returns all the data pertaining to a subject(an array), the counts of subjects experiencing different degrees of anxiety and labels for classification. It also plots the Power Spectral Density of the EEG data in the 4-20Hz frequency band.
 
-Hamilton = 'n/a'
-subjects = ['06','09','13']
-for plot,subject in enumerate(subjects ):
+`loadedf` is a function that takes directory and subjects as parameters and returns data across all the channels, names of channels and a dictionary of key: value pairs where keys represent different attributes of the retieved data that can be accessed.
+```
 
-#filename = "DASPS_Database/Raw data.mat/S09.mat"   #DASPS_Database/Raw data.mat/S09.mat
-    filename = f'DASPS_Database/Raw data.mat/S{subject}.mat'  #??? problem with leading zero 
-    with h5py.File(filename, "r") as f:  #DASPS_Database/Raw data.mat/S09.mat
-    # Print all root level object names (aka keys) 
-    # these can be group or dataset names 
-        print("Keys: %s" % f.keys())
-    # get first object name/key; may or may NOT be a group
-        a_group_key = list(f.keys())[0]
+`plot_edf_data` is a fuction that plots the Power Spectral Density of the EEG data from the edf file. This function takes raw_data_edf, electrode_index(the channels to plot),fs_edf(sampling frequency).
 
-    # get the object type for a_group_key: usually group or dataset
-        print(type(f[a_group_key])) 
+`plot_scalp_map` is a function that plots the spatial maps of the EEG activity in the brain. It takes subject, electrodes, data as parameters along with data_type = '.edf', run (corresponds to the situations with values from 1 to 12), method = 'mean'(describes the statistical method to be applied on the data), domain(domain of the features to be plotted).
 
-    # If a_group_key is a group name, 
-    # this gets the object names in the group and returns as a list
-        data = list(f[a_group_key])
+`clear_all_figures` is a function that closes all the open plotted figures.
 
-    # If a_group_key is a dataset name, 
-    # this gets the dataset values and returns as a list
-        data = list(f[a_group_key])
-    # preferred methods to get dataset values:
-        ds_obj = f[a_group_key]      # returns as a h5py dataset object
-        ds_arr = f[a_group_key][()]  # returns as a numpy array 
+`plot_PSD` is a funtion that visualizes the data in frequency domain. It subtracts the mean from the data and plots the PSD in the defined interval. It takes subject,electrodes,data as parameters along with freq_band(the frequency band to filter the data),run and sample_interval(the upper bound of the time intreval for plotting),fs as optional parameters.
 
-        labels = list(h5py.File(filename, "r")['labels'])
-        hamilton = list(h5py.File(filename, "r")['hamilton'])
-        situation = list(h5py.File(filename, "r")['situation'])
-
-
-Keys:
-- situation: a string describing the stimuli using the subject's words.  
-- hamilton: psychotherapist rating using the Hamilton Anxiety Rating Scale (HAM-A) . Total score 0-56 for 14 evaluation categories. 
-- labels: Two columns for the subject Self-Assessment Manikin (SAM). One column is an event's positive or negative score for valence, and the other is the arousal spectrum, from calmness to excitement. A combination of these two scores establishes anxiety levels.   
-- data: array size [ trial x samples x channels].  
-	Electrode: (14): AF3, AF4, F3, F4, FC5, FC6, F7, F8, T7, T8, P7, P8, O1, O2
-	Samples: (1920) 15 second * fs = 1920. fs = 128 Hz. Electrode voltage in uV 
 
 **Notes:**
 - The Trials were performed with (12) 6 stimuli, in  2 stages (recitation, recall)
