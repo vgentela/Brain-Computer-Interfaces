@@ -1,7 +1,7 @@
 """
 Name:       project3.py
 Revision:   1-May-2024
-Description: Functions necessary to perform the requirements of BCI Project 3
+Description: Functions necessary perform the requirements of BCI Project 3
 1) Load Data.  Data set is in two formats .mat and .edf
     a) Load data set from .mat file.  The mat file format requires the use of h5py
     b) Load data set from .mat file. 
@@ -73,7 +73,7 @@ def loadedf(directory, subjects):
 
 #%% Visualize the data
 
-def plot_edf_data(raw_data_edf,electrode_index = (2,16),fs_edf=128):
+def plot_edf_data(raw_data_edf,electrode_index = (2,16),subjects=1 ,run=1,fs_edf=128):
     '''
 
     Parameters
@@ -91,27 +91,41 @@ def plot_edf_data(raw_data_edf,electrode_index = (2,16),fs_edf=128):
 
     '''
 
-    plt.figure(num = 200)
+    plt.figure(num = 200,figsize=(8,6),clear = all)
     for index in range(2,16):  # raw data valid eed electrode channels index 2 - 15
         print(index)
         time_edf = np.arange(0,len(raw_data_edf[0,:])/fs_edf,1/fs_edf)
-        plt.plot(time_edf,(raw_data_edf[index,:] - np.mean(raw_data_edf[index,:])))
+        plt.plot(time_edf,(raw_data_edf[index,:] - np.mean(raw_data_edf[index,:])),label = (f"Chan {index -1}"))
 
         T_edf = (len(raw_data_edf[0,:])-3)/fs_edf          #TODO sample interval
         freq_edf = np.arange(0,((fs_edf/2)+1/fs_edf),1/T_edf)
         #raw_data_edfm [36 channels x samples ]
+    plt.suptitle(f'Subject {subjects} Run {run}')
+    plt.title('Time Domain (.edf)')
+    plt.ylabel("Amplitude (uV)")
+    #plt.ylim([])
+    plt.xlabel("Time (sec)")
+    plt.legend()
+    plt.tight_layout()
+     #Save figure 
+    plt.savefig('Time_Domain_edf.png')          
+      # ....then show  
+    plt.show()
+    plt.figure(num=300,figsize=(8,6),clear = all)
     for index in range(2,16):  # raw data valid eed electrode channels index 2 - 15
         PSD_edf = np.real(10*np.log10((np.fft.rfft(raw_data_edf[index,:]-np.mean(raw_data_edf[index,:])))**2)) # imaginary part = 0, extract real to avoid warnings
-        
-        plt.figure(num=300)
-        plt.plot(freq_edf,PSD_edf, label = (f"Chan {index}"))
+        plt.plot(freq_edf,PSD_edf, label = (f"Chan {index-1}"))
+    plt.suptitle(f'Subject {subjects} Run {run}')
+    plt.title('Frequency Domain (.edf)')
+    plt.ylabel("PSD (dB)")
+    #plt.ylim([-150,0])
+    plt.xlabel("Freq (Hz)")
     plt.legend()
     plt.tight_layout()
     #Save figure 
-    plt.savefig('Raw_Data_edf.png')          #TODO Light Severe
+    plt.savefig('Freq_Domain_edf.png')          #TODO Light Severe
      # ....then show  
     plt.show()
-    
     
     
     
@@ -119,26 +133,55 @@ def plot_edf_data(raw_data_edf,electrode_index = (2,16),fs_edf=128):
 
 #%% Visualize the data Scalp topo maps
 
-def plot_scalp_map ( subject, electrodes, data, data_type = '.edf', run = 1,method = 'mean', domain = 'time'):
+def plot_scalp_map ( subject, electrodes, data, title, fig_num, data_type = '.edf', run = 1,method = 'mean', domain = 'time'):
+    '''
+    
 
-#paradigm per subject consists of 6 situations composed of a recital phase followed by a recall phase 
-#TODO In this data set run + is a number from 1 to 6 x 2
+    Parameters
+    ----------
+    subject : TYPE
+        DESCRIPTION.
+    electrodes : TYPE
+        DESCRIPTION.
+    data : TYPE
+        DESCRIPTION.
+    data_type : TYPE, optional
+        DESCRIPTION. The default is '.edf'.
+    run : TYPE, optional
+        DESCRIPTION. #TODO  paradigm per subject consists of 6 situations composed of a recital phase followed
+        by a recall phase. In this data set run is a number from 1 to (6 x 2), i.e 1 -12.  The default is 1.
+        This paramater is used for labeling of the plot.
+    method : TYPE, optional
+        DESCRIPTION. The default is 'mean'.
+    domain : TYPE, optional
+        DESCRIPTION. The default is 'time'.
+
+    Returns
+    -------
+    None.
+
+    '''
 
 # Plot time average for a giving subject, situation
-    plt.figure(num = 21, clear =all)
+    plt.figure(num = fig_num, clear =all)
     if method == 'mean':
         if data_type == '.mat':
             #situation_mean = np.mean (ds_arr, axis = 0)  # This is the average across the 12 situations
             sample_mean = np.mean (data, axis = 1)  # This is the average across samples [12 situations x 14 channels]
-            #TODO # channel_data must match selected electrodes.  In this case they all electrodes 0:14
-            pt.plot_topo(channel_names=electrodes, channel_data=sample_mean[run,0:14],title=f'Subject {subject}, Run{run}',cbar_label='Voltage (uV)',montage_name='biosemi64')
+            #TODO # channel_data must match selected electrodes.  In this case they all channels 1-14
+            pt.plot_topo(channel_names=electrodes, channel_data=sample_mean[run,0:14],title=title,cbar_label='Voltage (uV)',montage_name='biosemi64')
         elif data_type == '.edf':
              #raw_data_edf[index for the first electrode:index for the last electrode, EEG data]
              #TODO this only works for all electrodes
              #TODO (raw_data_edf[Index of electrodes start at 2 end at 16,data]
              #TODO raw_data_mean = np.mean(raw_data_edf[2:16,:],axis = 1) 
-             raw_data_mean = np.mean(data[2:16,:],axis = 1)   
-             pt.plot_topo(channel_names=electrodes, channel_data=raw_data_mean,title=f'Subject {subject}, Run{run}',cbar_label='Voltage (uV)',montage_name='biosemi64')
+             
+             
+             #TODO correct for the data passed , don't make assumptions here corret by passing the right data from the test module
+             #raw_data_mean = np.mean(data[2:16,:],axis = 1)  # The .edf has a different mapping Electrodes start on index 2,  Note ther is also gyroscope data present 
+             raw_data_mean = np.mean(data[:,:],axis = 1)*1000
+             #TODO voltage scaling , for now assume need to multiply by 1000
+             pt.plot_topo(channel_names=electrodes, channel_data=raw_data_mean,title=title,cbar_label='Voltage (uV)',montage_name='biosemi64')
     plt.tight_layout()
     #Save figure 
     plt.savefig('Scalp_Map.png')          #TODO Light Severe
@@ -171,7 +214,7 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
    Assumption: data from the .mat files
    Description:  Draft
       
-   Two methods of getting at the eeg data contained in the dataset: list, and numpy array.
+   Two methods of getting at the eeg data contained in the dataset: list, and nimpy array.
    The numpy array is perfrered method
    #TODO do I have the correct interpretation from our readme file , and the excel file?
 
@@ -206,6 +249,9 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
    light_count = 0
    normal_count = 0
  
+    # The intention of this code is to replicate the labeling flow chart of Fig 5 ref [Asma Baghdadi]
+    #TODO clean up references
+    
    for index,subject in enumerate(subjects):
         
     
@@ -235,32 +281,60 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
     
             labels = list(h5py.File(filename, "r")['labels'])
             #TODO get into array format
-            label_array = np.zeros([6,12])
+            label_array = np.zeros([6,12]) # [Valence + Arousal + severe_count, + moderate_count + light_count + normal_ count x trials]; [6x12]
+            # Load the valance and arousal data
             label_array[0:2,:] = np.array(labels)[0:2,:]   # row[0] = Valence, row[1]=Arousal
         
             # sort anxiety levels
-            label_array[2] = np.where((label_array[0,:] <= 2) & (label_array[1,:] > 6) & (label_array[1,:] < 10), 1, 0)        # severe
+            # Total count per subject = 6 situations x 2 phases X number of subjects 
+            
+            # Start with Anxiety
+            
+            # Severe
+            label_array[2] = np.where((label_array[0,:] <= 2) & (label_array[1,:] >= 7) & (label_array[1,:] <= 9), 1, 0)        # severe
             severe_count = severe_count + np.sum(label_array[2])         
-            label_array[3]=np.where((label_array[0,:] > 2) & (label_array[0,:] <= 4) & (label_array[1,:] > 5) & (label_array[1,:] < 8), 1, 0) #moderate
+            
+            # Moderate
+            label_array[3]=np.where((label_array[0,:] >= 2) & (label_array[0,:] <= 4) & (label_array[1,:] >= 6) & (label_array[1,:] <= 7), 1, 0) #moderate
             moderate_count = moderate_count + np.sum(label_array[3])  
-            label_array[4]=np.where((label_array[0,:] > 4) & (label_array[0,:] <= 5) & (label_array[1,:] > 4) & (label_array[1,:] < 7), 1, 0) #light
+            
+            # Light
+            label_array[4]=np.where((label_array[0,:] >= 4) & (label_array[0,:] <= 5) & (label_array[1,:] >= 5) & (label_array[1,:] <= 6), 1, 0) #light
             light_count = light_count + np.sum(label_array[4])  
-            label_array[5]=np.where((label_array[0,:] > 5) & (label_array[0,:] <= 8) & (label_array[1,:] > 4) & (label_array[1,:] < 7), 1, 0) #normal
+            
+            # Normal anxiety
+            label_array[5]=np.where((label_array[0,:] >= 5) & (label_array[0,:] <= 8) & (label_array[1,:] > 4) & (label_array[1,:] < 7), 1, 0) #normal
+            #label_array[5]=np.where((label_array[0,:] >= 5) & (label_array[1,:] <= 5) & (label_array[1,:] <= 5), 1, 0) #normal
+            #label_array[5]=np.where((label_array[0,:] > 5) & (label_array[1,:] > 5)) 
             normal_count = normal_count + np.sum(label_array[5])  
+            
+            
             hamilton = list(h5py.File(filename, "r")['hamilton'])  # The pre and post Hamilton socres as evaluated by therapist 
             situation = list(h5py.File(filename, "r")['situation']) #This is the number of situations per paridigm
             
             # make into an array to facilitate the display of information
             count = [severe_count,moderate_count,light_count,normal_count]
+            
+            # Whats left is Normal or no anxiety observed in the subject.
+            no_anxiety_count = len(subjects)* 12 - np.sum(count)
+            
             print(f'Loaded Subject {subject}')      # Provide user feedback
             
-            
-            plot_PSD (index,electrodes,ds_arr,freq_band = [4,20],run = 1, sample_interval=15,fs =128)
+            #TODO temporary plotting at this stage
+            #plot_PSD (index,electrodes,ds_arr,level = 1,freq_band = [4,20],run = 1, sample_interval=15,fs =128)
+
+            if np.sum(label_array[2]) >0:  #TODO for now plot the PSD if any values are servere
+                plot_PSD (index,electrodes,ds_arr, level = 1,freq_band = [4,20],run = next((index for index,value in enumerate(label_array[2]) if value != 0), None), sample_interval=15,fs =128)
+
     
    #TODO not properly dealing with subject 
+  # label the data base
+   
+   # add an axis to ds_arr that contains the anxiety level
     
-   return ds_arr, count, label_array  
-       
+   #ds_arr_anxiety = np.expand_dims(ds_arr,axis = 0)  TODO not the right way to preceed
+   return severe_count,moderate_count,light_count,normal_count,no_anxiety_count    
+   
  #%% Visualize the data Time Domain #TODO Not much value in viewing the time data 
 
 #     # loop through all 12 situations 6 runs x (recitation = recall)
@@ -301,22 +375,24 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
 #         # plt.xlabel("Freq (Hz)")
 #         # Pre allocated the PSD arrays
  
-def plot_PSD (subject,electrodes,data,freq_band = [4,20],run = 1, sample_interval=15,fs =128):
+def plot_PSD (subject,electrodes,data, level,freq_band = [4,20], run = 1, sample_interval=15, fs =128):
     '''
     Visualize the data Frequency Domain.  First subtract the mean then calculate the PSD, in (dB), for the defined interval.
     
     Parameters
     ----------
-    data : TYPE numpy array size [trial,sampled data,electrode channel]
+    subject #TODO
+    electrodes #TODO
+    data : TYPE numpy array size [run,sampled data,electrode channel]
         DESCRIPTION.
     freq_band : TYPE, optional
-        DESCRIPTION. The default is [1,20].
+        DESCRIPTION. This specoicifies the start and end freq, in Hz, to be evaluated for PSD. The default is [1,20].
     run : Type int, paradigm run of interest.  6 situations and 2 phases, recital, reall #TODO make this a an enumerate
     channels : TYPE, optional #TODO need to make channels enumerate so that they can be selected
         DESCRIPTION. The default is 14.
     sample_interval : TYPE int time in seconds, optional
         DESCRIPTION. This is the end time for the sample interval starting from 0 seconds. The default is 15 seconds.
-
+    fs#TODO
     Returns 
     -------
     None.
@@ -326,7 +402,7 @@ def plot_PSD (subject,electrodes,data,freq_band = [4,20],run = 1, sample_interva
 #         high_beta_band=np.zeros(14)        
 #         less_20_hz=np.zeros(14)
 #         
-    plt.figure(num=subject+50)    # 50 is arbritrary 
+    plt.figure(num=subject+51, figsize=(8,6),clear=all)    # 51 is arbritrary This should result in fig 51 being associated with subject 01, Sub 23 Fig 73
     #TODO channels=14 to electrode enumerate
     
     # initialize the power in frequecy band to zereo
@@ -342,16 +418,16 @@ def plot_PSD (subject,electrodes,data,freq_band = [4,20],run = 1, sample_interva
     
     for electrode_index,electrode in enumerate(electrodes):  # TODO change from all "14" to channels
         print(electrode_index,electrode)
-        
+        # Calculate and plot the entire PSD 
         #PSD = np.real(10*np.log10((np.fft.rfft(data[trial,0:sample_index,channel]))**2)) # imaginary part = 0, extract real to avoid warnings #TODO delete this reference
         PSD = np.real(10*np.log10((np.fft.rfft(data[run,:,electrode_index]-np.mean(data[run,:,electrode_index])))**2)) # imaginary part = 0, extract real to avoid warnings
         plt.plot(freq,PSD,label = (f"Chan {electrode}"))
         plt.ylabel ('PSD (dB)')
         plt.ylim([-5,80])  #TODO problem plots zero hz value
         plt.xlabel ('Frequency (Hz)')
-        plt.suptitle (f'Power Spectral Density Run {run} Subject {subject}') # Indicate Trial number index starting from 1
+        plt.suptitle (f'Power Spectral Density Run {run} Subject {subject+1}') # Indicate Trial number index starting from 1
         #     # plt.suptitle (f'PSD 4-20 Hz Band for Light Anxiety Qty {light_count}')  #normal, light, severe
-        plt.title (f'All Electrodes, Time Interval {sample_interval} sec')
+        plt.title (f'Level {level},Time Interval {sample_interval} sec')
         plt.grid('on')
         plt.legend(loc='upper right') 
         # Integrated the spectrum and normalized based on the length of the freq band
@@ -369,7 +445,7 @@ def plot_PSD (subject,electrodes,data,freq_band = [4,20],run = 1, sample_interva
 
 def plot_PSD_by_anxiety (subject, electrodes, anxiet_level, PSD_band ,run = 1):
 #   count = [0,0,0,0]    # make into an array to facilitate the display of information
-    plt.figure(num = 0, clear=all) 
+    plt.figure(num = 1000, clear=all) 
 # #            # print (f'{situation+1},{channel}')  # TODO test
 # #            # print(f'{PSD[0]}')                  #TODO test
          
