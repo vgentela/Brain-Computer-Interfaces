@@ -26,6 +26,7 @@ import h5py
 import matplotlib.pyplot as plt
 import mne as mne
 import plot_topo as pt
+import pandas as pd
 #%% Load .edf file
 #TODO ensure that the dataset is in the correct directory. C:\Users\18023\Documents\GitHub\BCI-Project-3\DASPS_Database\Raw data .edf
 #file = "S06.edf"
@@ -205,7 +206,49 @@ def clear_all_figures():
     fig = plt.get_fignums()
     for index,fig_num in enumerate (fig):
         plt.close(fig_num)
-
+#%%
+def labelling(data,labels):
+    
+    data = np.vstack(data[:])
+    labels = labels.T
+    
+    df = pd.DataFrame(data)
+    label_indices = np.where(df.index % 1920 == 0)[0]
+    
+    severe_count = 0
+    moderate_count = 0
+    light_count = 0
+    normal_count = 0
+    
+    for idx,index in enumerate(label_indices):
+        #print(index)
+        df.at[index,'valence']  = labels[idx][0]
+        df.at[index,'arousal'] = labels[idx][1]
+        df.at[index,'trial'] = f'trial_{idx}'
+        val,aro= (labels[idx][0],labels[idx][1])
+        
+        if val<5 and aro>5:
+            if 0<val<=2 and 7<=aro<=9:
+                df.at[index,'Anxiety_level'] = 'severe'
+                severe_count+= 1
+            elif 2<=val<=4 and 6<=aro<=7:
+                df.at[index,'Anxiety_level'] = 'moderate'
+                moderate_count+=1
+            elif 4<=val<5 and 5<aro<=6:
+                df.at[index,'Anxiety_level'] = 'light'
+                light_count+= 1
+        else:
+            df.at[index,'Anxiety_level'] = 'normal'
+            normal_count += 1
+       
+        
+            
+       
+    df = df.replace(np.nan,'')
+    df.set_index('trial',inplace= True)
+    
+    
+    return df,(severe_count,moderate_count,light_count,normal_count)
 
 #%% Load preprocessed data.  This is the raw data contained in the .edf files after bandpass filtering and application of ICA
 
@@ -243,12 +286,8 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
 
     '''
     # count the anxiety levels 
-   anxiety_levels = ['Severe','Moderate','Light','Normal']
-   severe_count = 0
-   moderate_count = 0
-   light_count = 0
-   normal_count = 0
- 
+   #anxiety_levels = ['Severe','Moderate','Light','Normal']
+   
     # The intention of this code is to replicate the labeling flow chart of Fig 5 ref [Asma Baghdadi]
     #TODO clean up references
     
@@ -261,29 +300,33 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
         with h5py.File(filename, "r") as f:  #DASPS_Database/Raw data.mat/S09.mat
         # Print all root level object names (aka keys) 
         # these can be group or dataset names 
-            print("Keys: %s" % f.keys())
+            #print("Keys: %s" % f.keys())
         # get first object name/key; may or may NOT be a group
             a_group_key = list(f.keys())[0]
     
         # get the object type for a_group_key: usually group or dataset
-            print(type(f[a_group_key])) 
+            #print(type(f[a_group_key])) 
     
         # If a_group_key is a group name, 
         # this gets the object names in the group and returns as a list
-            data = list(f[a_group_key])
-    
-        # If a_group_key is a dataset name, 
-        # this gets the dataset values and returns as a list
-            data = list(f[a_group_key])
+            #data = list(f[a_group_key])
+            data = f['data'][:]
+            
+  
         # preferred methods to get dataset values:
             ds_obj = f[a_group_key]      # returns as a h5py dataset object
             ds_arr = f[a_group_key][()]  # returns as a numpy array 
     
-            labels = list(h5py.File(filename, "r")['labels'])
+            #labels = list(h5py.File(filename, "r")['labels'])
+            
+            labels= f['labels'][:]
+            
+            df,count_tuple = labelling(data,labels)
+            
             #TODO get into array format
-            label_array = np.zeros([6,12]) # [Valence + Arousal + severe_count, + moderate_count + light_count + normal_ count x trials]; [6x12]
+            """label_array = np.zeros((4,12)) # [Valence + Arousal + severe_count, + moderate_count + light_count + normal_ count x trials]; [6x12]
             # Load the valance and arousal data
-            label_array[0:2,:] = np.array(labels)[0:2,:]   # row[0] = Valence, row[1]=Arousal
+            #label_array[0:2,:] = np.array(labels)[0:2,:]   # row[0] = Valence, row[1]=Arousal
         
             # sort anxiety levels
             # Total count per subject = 6 situations x 2 phases X number of subjects 
@@ -324,8 +367,12 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
             #plot_PSD (index,electrodes,ds_arr,level = 1,freq_band = [4,20],run = 1, sample_interval=15,fs =128)
 
             if np.sum(label_array[2]) >0:  #TODO for now plot the PSD if any values are servere
-                plot_PSD (index,electrodes,ds_arr, level = 1,freq_band = [4,20],run = next((index for index,value in enumerate(label_array[2]) if value != 0), None), sample_interval=15,fs =128)
-
+                plot_PSD (index,electrodes,ds_arr, level = 1,freq_band = [4,20],run = next((index for index,value in enumerate(label_array[2]) if value != 0), None), sample_interval=15,fs =128)"""
+            severe_count,moderate_count,light_count,normal_count = count_tuple   
+            print('severe count:',severe_count)
+            print('moderate_count:',moderate_count)
+            print('light_count:',light_count)
+            print('normal_count:',normal_count)
     
    #TODO not properly dealing with subject 
   # label the data base
@@ -333,7 +380,7 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
    # add an axis to ds_arr that contains the anxiety level
     
    #ds_arr_anxiety = np.expand_dims(ds_arr,axis = 0)  TODO not the right way to preceed
-   return severe_count,moderate_count,light_count,normal_count,no_anxiety_count    
+   return df
    
  #%% Visualize the data Time Domain #TODO Not much value in viewing the time data 
 

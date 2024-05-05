@@ -26,13 +26,15 @@ import mne as mne
 #C:\Users\18023\Documents\GitHub\BCI-Project-3
 import plot_topo as pt
 import project_3 as p3
+import pandas as pd
 #%% Load edf file
 #C:\Users\18023\Documents\GitHub\BCI-Project-3\DASPS_Database\Raw data .edf
 subjects = ['06']
 directory = 'DASPS_Database/Raw data .edf/'
 
 raw_data_edf,channels_edf,info = p3.loadedf(directory,subjects)
-
+#%%
+len(raw_data_edf[0])
 #%% Visualize Data Scalp Map 
 #This has only been tested with data from edf format files.
 #TODO for each paradigm there are 6 situations and 2 phases, consider using a for loop 
@@ -95,7 +97,6 @@ p3.plot_scalp_map ( subjects, electrodes, data, title, fig_num, data_type = data
 p3.plot_edf_data (raw_data_edf,electrode_index = (2,16), subjects=6, run=1,fs_edf=128)
 
 #%% Load .mat file dataset associated with the processed raw data, bandpass filter and artifact removal using ICA
-import project_3 as p3
 #subjects = ['01','02','04','05','09','13','15','18','20','22',]# vallence = 1 Arousal = 8
 #subjects = ['06','09','01','04','05','07','10','11','12','13','14','17','18','19','20','21','02','03','08','15','16','22','23']
 subjects = ['06']
@@ -109,12 +110,12 @@ electrodes =['AF3', 'O1','F7','P7', 'F3','T7','FC5','O2','AF4','T8', 'F8','P8','
 #TODO defer task, not much info.
 
 #%%  Label the anxiety levels of the trials
-import project_3 as p3
+
 subjects = ['06','09','01','04','05','07','10','11','12','13','14','17','18','19','20','21','02','03','08','15','16','22','23']
 electrodes =['AF3','AF4', 'FC5','FC6','P7','P8']
-
-severe_count,moderate_count,light_count,normal_count,no_anxiety_count = p3.load_data_epoch_anxiety_levels(directory ,subjects ,electrodes)
-print (f' Severe Anxiety {severe_count}, Moderate Anxiety {moderate_count}, Light Anxiety {light_count}, Normal Anciety {normal_count}, No Anxiety {no_anxiety_count}' )
+#%%
+subjects = ['15']
+df= p3.load_data_epoch_anxiety_levels(directory ,subjects ,electrodes)
 # TODO numbers do not match 
 # expected 
 #Severe Anxiety 90.0, Moderate Anxiety 10.0, Light Anxiety 20.0, Normal Anciety 2.0, No Anxiety no report Reported Normal as 156
@@ -122,14 +123,20 @@ print (f' Severe Anxiety {severe_count}, Moderate Anxiety {moderate_count}, Ligh
 #Severe Anxiety 90.0, Moderate Anxiety 30.0, Light Anxiety 0.0, Normal Anxiety 58, No Anxiety 98.0  Total = 276 
 #TODO looks like they combined Light Anxiety + Normal anxiety + Normal Low Arousal High Valence = 156?
 #TODO Why the descrepency with moderate?
-
-
+#%%
+subject=  10
+filename = f'{directory}S{subject}.mat'
+directory = 'DASPS_Database/Raw data.mat/'
+file = h5py.File(filename,'r+')
+#%%
+df['Anxiety_level'].unique()
 
 #TODO plot the anxiety levels on the x-axis and the mean PSD on the y-axis
 
 #TODO this is not working yetplot_PSD_by_anxiety (subject, electrodes, anxiet_level, PSD_band ,run = 1)
     
 #%% Feature Extraction 
+
 # Looks like some electrodes show alpha band and beta band power need to complete the visualization of anxiety to determine wht 
 # the best statistic would be
 
