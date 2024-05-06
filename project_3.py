@@ -27,6 +27,11 @@ import matplotlib.pyplot as plt
 import mne as mne
 import plot_topo as pt
 import pandas as pd
+from torcheeg import transforms as tfs
+import torch
+from torch.utils.data import TensorDataset,DataLoader,random_split
+from sklearn.model_selection import train_test_split
+from torch import nn
 #%% Load .edf file
 #TODO ensure that the dataset is in the correct directory. C:\Users\18023\Documents\GitHub\BCI-Project-3\DASPS_Database\Raw data .edf
 #file = "S06.edf"
@@ -244,12 +249,86 @@ def labelling(data,labels):
         
             
        
-    df = df.replace(np.nan,'')
+    #df = df.replace(np.nan,'')
     df.set_index('trial',inplace= True)
     
     
     return df,(severe_count,moderate_count,light_count,normal_count)
+#%%
+def transformations(df,model):
+    
+    key= next(key for key in df.keys())
+    bpower = tfs.BandPowerSpectralDensity(128,band_dict={'alpha': [8, 14], 'beta': [14, 31], 'gamma': [31, 49]})
+    de = tfs.BandDifferentialEntropy(128,band_dict={'alpha': [8, 14], 'beta': [14, 31], 'gamma': [31, 49]})
 
+      
+    eeg_data = df[f'{key}'].drop(['valence','arousal','Anxiety_level'],axis=1)
+    
+    normalized_eeg = eeg_data.apply(lambda x: x-np.mean(x),axis =1).to_numpy()
+    
+    normalized_eeg = normalized_eeg.reshape(12,1920,14)
+    
+    anxiety_degree = df[f'{key}']['Anxiety_level'][~pd.isna(df[f'{key}']['Anxiety_level'])]
+
+    labels = pd.get_dummies(anxiety_degree).to_numpy()
+
+    labels = labels.reshape(12,labels.shape[1])
+    
+    trial_band_powers=[]
+    trial_entropys =[]
+    
+    for trial in normalized_eeg:
+        
+        powers =bpower(eeg=trial.T)
+        band_powers = powers['eeg']
+        
+        
+        differential_entropy = de(eeg=trial.T)    
+        band_entropys = differential_entropy['eeg']
+        
+        trial_band_powers.append(band_powers)
+        trial_entropys.append(band_entropys)
+        
+        
+    if model == 'autoencoder':
+        
+        band_tensors = torch.tensor(trial_band_powers)
+        entropy_tensors = torch.tensor(trial_entropys)
+        
+        
+        features = torch.transpose(torch.cat((band_tensors,entropy_tensors),dim=2),1,2)
+        labels = torch.tensor(labels)
+        #print(features.shape,labels.shape)
+
+        features= torch.stack([feature for feature in features])
+        labels = torch.stack([label for label in labels])
+        #print(features.shape,labels.shape)
+
+        
+        dataset= TensorDataset(features,labels)
+        
+        train_data, test_data = random_split(dataset,[7/10,3/10])
+        
+        return train_data,test_data
+        
+    if model =='randomforest':
+        band_arrays = np.asarray(trial_band_powers)
+        entropy_arrays = np.asarray(trial_entropys)
+        
+        features = np.transpose(np.concatenate((band_arrays,entropy_arrays),axis=2),(0,2,1))
+        print(len(features),len(labels))
+        
+        train_data, test_data, train_labels, test_labels = train_test_split(features,labels,test_size=0.3)
+        
+        return train_data, train_labels, test_data, test_labels
+#%%
+class Classifier(nn.Module):
+    
+    def __init__(self,feature_nodes,hidden_nodes):
+        super(Classifier,self).__init__()
+        
+        self.encoder
+        
 #%% Load preprocessed data.  This is the raw data contained in the .edf files after bandpass filtering and application of ICA
 
 def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
@@ -291,6 +370,7 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
     # The intention of this code is to replicate the labeling flow chart of Fig 5 ref [Asma Baghdadi]
     #TODO clean up references
     
+   subjects_df = {}
    for index,subject in enumerate(subjects):
         
     
@@ -323,6 +403,10 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
             
             df,count_tuple = labelling(data,labels)
             
+            if f'{subject}' in subjects_df.keys():
+                subjects_df[f'subject'].append(df)
+            else:
+                subjects_df[f'{subject}'] = df
             #TODO get into array format
             """label_array = np.zeros((4,12)) # [Valence + Arousal + severe_count, + moderate_count + light_count + normal_ count x trials]; [6x12]
             # Load the valance and arousal data
@@ -380,7 +464,7 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
    # add an axis to ds_arr that contains the anxiety level
     
    #ds_arr_anxiety = np.expand_dims(ds_arr,axis = 0)  TODO not the right way to preceed
-   return df
+   return subjects_df
    
  #%% Visualize the data Time Domain #TODO Not much value in viewing the time data 
 

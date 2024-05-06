@@ -116,6 +116,12 @@ electrodes =['AF3','AF4', 'FC5','FC6','P7','P8']
 #%%
 subjects = ['15']
 df= p3.load_data_epoch_anxiety_levels(directory ,subjects ,electrodes)
+#%%
+train_data, train_labels, test_data, test_labels = p3.transformations(df,'randomforest')
+#print(next(key for key in df.keys()))
+#%%
+train_labels[4]
+#print(len(se['eeg'][0][0][0][~np.isnan(se['eeg'][0][0][0])]))
 # TODO numbers do not match 
 # expected 
 #Severe Anxiety 90.0, Moderate Anxiety 10.0, Light Anxiety 20.0, Normal Anciety 2.0, No Anxiety no report Reported Normal as 156
@@ -127,9 +133,9 @@ df= p3.load_data_epoch_anxiety_levels(directory ,subjects ,electrodes)
 subject=  10
 filename = f'{directory}S{subject}.mat'
 directory = 'DASPS_Database/Raw data.mat/'
-file = h5py.File(filename,'r+')
+file = h5py.File(filename,'r')
 #%%
-df['Anxiety_level'].unique()
+
 
 #TODO plot the anxiety levels on the x-axis and the mean PSD on the y-axis
 
