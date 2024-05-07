@@ -29,6 +29,7 @@ from project_3 import *
 import pandas as pd
 from torch.utils.data import DataLoader
 import torch.optim as optim
+from pathlib import Path
 #%% Load edf file
 #C:\Users\18023\Documents\GitHub\BCI-Project-3\DASPS_Database\Raw data .edf
 subjects = ['06']
@@ -96,9 +97,10 @@ p3.plot_edf_data (raw_data_edf,electrode_index = (2,16), subjects=6, run=1,fs_ed
 #%% Load .mat file dataset associated with the processed raw data, bandpass filter and artifact removal using ICA
 #subjects = ['01','02','04','05','09','13','15','18','20','22',]# vallence = 1 Arousal = 8
 #subjects = ['06','09','01','04','05','07','10','11','12','13','14','17','18','19','20','21','02','03','08','15','16','22','23']
-subjects = ['06']
-directory = 'DASPS_Database/Raw data.mat/'
-electrodes =['AF3', 'O1','F7','P7', 'F3','T7','FC5','O2','AF4','T8', 'F8','P8','F4','FC6'  ]
+#subjects = ['06']
+directory = Path(f'{Path.cwd()}//DASPS_Database/Raw data.mat/')
+assert directory.exists()
+#electrodes =['AF3', 'O1','F7','P7', 'F3','T7','FC5','O2','AF4','T8', 'F8','P8','F4','FC6'  ]
 #electrodes =['AF4', 'T8','FC6'  ]
 #TODO ds_arr is associated with the last subject in subjects, update for .mat fils
 #ds_arr, count, label_array = p3.load_data_epoch_anxiety_levels(directory,subjects,electrodes) # changed what is returned need to resolve ds_array
@@ -108,18 +110,18 @@ electrodes =['AF3', 'O1','F7','P7', 'F3','T7','FC5','O2','AF4','T8', 'F8','P8','
 
 #%%  Label the anxiety levels of the trials
 
-subjects = ['06','09','01','04','05','07','10','11','12','13','14','17','18','19','20','21','02','03','08','15','16','22','23']
-electrodes =['AF3','AF4', 'FC5','FC6','P7','P8']
+#subjects = [06','09','01','04','05','07','10','11','12','13','14','17','18','19','20','21','02','03','08','15','16','22','23']
+#lectrodes =['AF3','AF4', 'FC5','FC6','P7','P8']
 #%%
-subjects = ['15','20']
+subjects = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
 df= load_data_epoch_anxiety_levels(directory ,subjects ,electrodes)
 #%%
-train_data,test_data= transformations(df,'autoencoder')
-#print(next(key for key in df.keys()))
+train_loader,test_loader= transformations(df,'autoencoder',[7/10,3/10],train_batch_size=10,test_batch_size=5)
 #%%
-train_loader = DataLoader(train_data,batch_size = 1,shuffle=True,drop_last=True)
+len(train_loader),len(test_loader)
+#%%
 optimizer = optim.Adam
-vae = train(optimizer,10,'cpu',train_loader)
+vae = train(optimizer,10,'cuda',train_loader)
 #%%
 model, accs, tl,el = vae.training()
 #print(len(se['eeg'][0][0][0][~np.isnan(se['eeg'][0][0][0])]))

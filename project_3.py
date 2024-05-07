@@ -19,22 +19,25 @@ Authors:
 
 import import_ssvep_data
 import loadmat
+import plot_topo as pt
 import numpy as np
 #TODO #c:\users\18023\anaconda3\lib\site-packages
 import h5py
 #import seaborn as sb
 import matplotlib.pyplot as plt
 import mne as mne
-import plot_topo as pt
 import pandas as pd
 from torcheeg import transforms as tfs
 import torch
 from torch.utils.data import TensorDataset,DataLoader,random_split
-from sklearn.model_selection import train_test_split
 from torch import nn
 import torch.nn.functional as  F
 from torch.distributions import Normal
 import torch.optim as optim
+from sklearn.ensemble import RandomForestClassifier as rfc
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix,f1_score,recall_score,accuracy_score
+from sklearn.model_selection import GridSearchCV as gsv
 #%% Load .edf file
 #TODO ensure that the dataset is in the correct directory. C:\Users\18023\Documents\GitHub\BCI-Project-3\DASPS_Database\Raw data .edf
 #file = "S06.edf"
@@ -199,7 +202,6 @@ def plot_scalp_map ( subject, electrodes, data, title, fig_num, data_type = '.ed
     return 
 
 
-#%% House Keeping Functions
 
 #%% Clear figures
 def clear_all_figures():
@@ -234,21 +236,24 @@ def labelling(data,labels):
         df.at[index,'arousal'] = labels[idx][1]
         df.at[index,'trial'] = f'trial_{idx}'
         val,aro= (labels[idx][0],labels[idx][1])
-        
-        if val<5 and aro>5:
-            if 0<val<=2 and 7<=aro<=9:
+       
+        if val<=5 and aro>=5:
+            if 0<=val<=2 and 7<=aro<=9:
                 df.at[index,'Anxiety_level'] = 'severe'
                 severe_count+= 1
-            elif 2<=val<=4 and 6<=aro<=7:
+            elif 2<val<=4 and 6<=aro<7:
                 df.at[index,'Anxiety_level'] = 'moderate'
                 moderate_count+=1
-            elif 4<=val<5 and 5<aro<=6:
+            elif 4<val<=5 and 5<=aro<6:
                 df.at[index,'Anxiety_level'] = 'light'
                 light_count+= 1
+            else:
+                df.at[index,'Anxiety_level']= 'normal'
+                normal_count +=1
+                
         else:
             df.at[index,'Anxiety_level'] = 'normal'
-            normal_count += 1
-       
+            normal_count += 1   
         
             
        
@@ -258,7 +263,7 @@ def labelling(data,labels):
     
     return df,(severe_count,moderate_count,light_count,normal_count)
 #%%
-def transformations(df,model):
+def transformations(df,model,split_ratio= None, test_size = None,train_batch_size =None,test_batch_size =None):
     
     keys= list(key for key in df.keys())
   
@@ -313,9 +318,12 @@ def transformations(df,model):
         
         dataset= TensorDataset(features,labels)
         
-        train_data, test_data = random_split(dataset,[7/10,3/10])
+        train_data, test_data = random_split(dataset,split_ratio)
         
-        return train_data,test_data
+        train_loader = DataLoader(train_data,batch_size=train_batch_size,shuffle =True,drop_last=True)
+        test_loader = DataLoader(test_data,batch_size = test_batch_size, shuffle =True, drop_last=True)
+        
+        return train_loader, test_loader
         
     elif model =='randomforest':
         band_arrays = np.asarray(trial_band_powers)
@@ -323,9 +331,9 @@ def transformations(df,model):
         
         features = np.transpose(np.concatenate((band_arrays,entropy_arrays),axis=2),(0,2,1))
         #labels = np.stack(labels)
-        print(len(features),len(labels))
+        #print(len(features),len(labels))
         
-        train_data, test_data, train_labels, test_labels = train_test_split(features,labels,test_size=0.3)
+        train_data, test_data, train_labels, test_labels = train_test_split(features,labels,test_size=test_size)
         
         return train_data, train_labels, test_data, test_labels
     else:
@@ -350,9 +358,9 @@ class Encoder(nn.Module):
         
     def forward(self,inputs):
         inputs = F.relu(self.linear1(inputs.float().flatten(1)))
-        print(inputs.shape)
+        #print(inputs.shape)
         inputs = F.relu(self.linear2(inputs))
-        print(inputs.shape)
+        #print(inputs.shape)
         inputs = self.flatten(inputs)
        
         z_mean = self.z_mean(inputs).to(self.device)
@@ -446,11 +454,11 @@ class Loss():
         
         class_loss = self.classification_loss(output,label)
         
-        return 100*recon_loss + kld_loss + 300*class_loss,class_loss
+        return 1*recon_loss + kld_loss + 3*class_loss,class_loss
 #%%
 
 class train():
-    def __init__(self,optimizer,latent_embedding,device,train_loader,lr=1e-3,epochs=40):
+    def __init__(self,optimizer,latent_embedding,device,train_loader,lr=1e-4,epochs=60):
         self.optimizer = optimizer
         self.lr =  lr
         self.epochs =epochs
@@ -460,7 +468,7 @@ class train():
     def training(self):
         encoder = Encoder((6,14), self.latent_embedding,self.device)
         decoder = Decoder(self.latent_embedding, (1,20))
-        classifier = Classifier(self.latent_embedding,3)
+        classifier = Classifier(self.latent_embedding,4)
         vae = VAE(encoder,classifier,decoder, self.device)
         los = Loss()
         opt = self.optimizer
@@ -476,13 +484,14 @@ class train():
             correct = 0
             for batch_id, (data,target) in enumerate(self.train_loader):
                 data = data.to(self.device)
-                print(data.shape)
+                target = target.to(self.device)
+                #print(data.shape)
                 optimizer.zero_grad()
                 
                 pred= vae.forward(data)
                 
                 loss,class_loss = los.vae_loss(pred,data.float(),target.float())
-                print(class_loss)
+                #print(class_loss)
                 loss.backward()
                 
                 optimizer.step()
@@ -496,12 +505,42 @@ class train():
             acc = float(correct)/len(self.train_loader)
             accs.append(acc)   
             epoch_loss.append(loss/len(self.train_loader))
-            print('Average Train Loss:',np.mean(classification_loss[epoch]),sep=':')
+            
             print('Accuracy:',acc,sep =':')
+            print('Average Combined Loss:',np.mean(train_loss[epoch]))
+            print('Average Classification Loss:',np.mean(classification_loss[epoch]),sep=':')
             print('----------------------------------------------------------------')
     
             
         return classifier,accs,train_loss,epoch_loss
+        
+#%%
+class randomforest():
+    
+    def __init__(self,n_estimators,criterion,max_depth,class_weight,scoring):
+        self.n_estimators = n_estimators
+        self.criterion =  criterion
+        self.max_depth = max_depth
+        self.class_weight = class_weight
+        self.scoring = scoring
+        self.forest = rfc(criterion=self.criterion)
+        self.grid  = gsv(self.forest,[{'n_estimators':n_estimators},{'max_depth':self.max_depth},{'class_weight':self.class_weight}],scoring=self.scoring)
+    
+    def r_forest(self,x_train,y_train,x_test,y_test):
+        
+        model = self.grid.fit(x_train,y_train).best_estimator_
+        
+        best_params = self.grid.best_params_
+        
+        pred = model.predict_proba(x_test)
+        
+        score = self.grid.score(pred,y_test)
+        
+        print('Recall score on the test data:', score)
+        
+        return model,best_params,score
+        
+        
         
         
 #%% Load preprocessed data.  This is the raw data contained in the .edf files after bandpass filtering and application of ICA
@@ -551,7 +590,7 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
     
     #filename = "DASPS_Database/Raw data.mat/S09.mat"   #DASPS_Database/Raw data.mat/S09.mat
         #filename = f'DASPS_Database/Raw data.mat/S{subject}.mat'   
-        filename = f'{directory}S{subject}.mat'
+        filename = f'{directory}//S{str(subject).rjust(2,"0") if subject < 10 else subject}.mat'
         with h5py.File(filename, "r") as f:  #DASPS_Database/Raw data.mat/S09.mat
         # Print all root level object names (aka keys) 
         # these can be group or dataset names 
@@ -600,7 +639,7 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
    return subjects_df
    
 
- 
+#%%
 def plot_PSD (subject,electrodes,data, level,freq_band = [4,20], run = 1, sample_interval=15, fs =128):
     '''
     Visualize the data Frequency Domain.  First subtract the mean then calculate the PSD, in (dB), for the defined interval.
