@@ -32,6 +32,9 @@ import torch
 from torch.utils.data import TensorDataset,DataLoader,random_split
 from sklearn.model_selection import train_test_split
 from torch import nn
+import torch.nn.functional as  F
+from torch.distributions import Normal
+import torch.optim as optim
 #%% Load .edf file
 #TODO ensure that the dataset is in the correct directory. C:\Users\18023\Documents\GitHub\BCI-Project-3\DASPS_Database\Raw data .edf
 #file = "S06.edf"
@@ -265,6 +268,7 @@ def transformations(df,model):
     trial_band_powers=[]
     trial_entropys =[]
     combined_labels= pd.DataFrame()
+    
     for key in keys:
         eeg_data = df[f'{key}'].drop(['valence','arousal','Anxiety_level'],axis=1)
         
@@ -287,9 +291,9 @@ def transformations(df,model):
             
             trial_band_powers.append(band_powers)
             trial_entropys.append(band_entropys)
-    print(combined_labels) 
+    #print(combined_labels) 
     labels = pd.get_dummies(combined_labels).to_numpy()
-    print(labels)
+    #print(labels)
     #labels = labels.reshape(12,labels.shape[1])  
     
     if model == 'autoencoder':
@@ -313,7 +317,7 @@ def transformations(df,model):
         
         return train_data,test_data
         
-    if model =='randomforest':
+    elif model =='randomforest':
         band_arrays = np.asarray(trial_band_powers)
         entropy_arrays = np.asarray(trial_entropys)
         
@@ -324,13 +328,181 @@ def transformations(df,model):
         train_data, test_data, train_labels, test_labels = train_test_split(features,labels,test_size=0.3)
         
         return train_data, train_labels, test_data, test_labels
+    else:
+        raise Exception('please choose either autoencoder or randomforest')
+     
+            
+
+
+#%%
+class Encoder(nn.Module):
+    
+    def __init__(self,input_size,latent_embedding,device):
+        super().__init__()
+        
+        self.linear1 = nn.Linear(input_size[0]*input_size[1],50)
+        self.linear2 = nn.Linear(50,20)
+        self.flatten = nn.Flatten()
+        self.z_mean = nn.Linear(20,latent_embedding)
+        self.log_var =nn.Linear(20,latent_embedding)
+        #print(latent_embedding[0])
+        self.device = device
+        
+    def forward(self,inputs):
+        inputs = F.relu(self.linear1(inputs.float().flatten(1)))
+        print(inputs.shape)
+        inputs = F.relu(self.linear2(inputs))
+        print(inputs.shape)
+        inputs = self.flatten(inputs)
+       
+        z_mean = self.z_mean(inputs).to(self.device)
+        log_var = self.log_var(inputs).to(self.device)
+        
+        batch, dim = z_mean.shape
+        epsilon = Normal(0, 1).sample((batch,dim)).to(self.device)
+        
+        z = z_mean + torch.exp(0.5 * log_var) * epsilon
+        #print(z)
+        return z_mean, log_var, z
+        
+#%%
+class Decoder(nn.Module):
+    def __init__(self,embedding_dim,orig_dim):
+        super().__init__()
+   
+        self.linear1 = nn.Linear(embedding_dim,orig_dim[0]*orig_dim[1])
+        self.reshape = lambda x: x.view(-1,orig_dim[0],orig_dim[1])
+        self.linear2 = nn.Linear(20, 50)
+        self.linear3 = nn.Linear(50,84)
+        
+    
+    def forward(self,latent_vector):
+        latent_vector = self.linear1(latent_vector.float())
+        latent_vector = self.reshape(latent_vector)
+        latent_vector= F.relu(self.linear2(latent_vector))
+        latent_vector = torch.sigmoid(self.linear3(latent_vector))
+        
+        return latent_vector.view(-1,6,14)
 #%%
 class Classifier(nn.Module):
     
-    def __init__(self,feature_nodes,hidden_nodes):
-        super(Classifier,self).__init__()
+    def __init__(self,embedding_dim,target_number):
+        super().__init__()
+        self.linear1 = nn.Linear(embedding_dim,7)
+        self.linear2 = nn.Linear(7,target_number)
+    def forward(self,z):
+        z = self.linear1(z)
+        z = F.relu(self.linear2(z))
+        return torch.sigmoid(z)
+#%%
+
+class VAE(nn.Module):
+    def __init__(self,encoder,classifier,decoder,device):
+        super().__init__()
+        if device =='cuda' and torch.cuda.is_available():
+            self.encoder = encoder.to('cuda')
+            self.decoder = decoder.to('cuda')
+            self.classifier = classifier.to('cuda')
+        elif device == 'cpu':
+            self.encoder = encoder.to('cpu')
+            self.decoder = decoder.to('cpu')
+            self.classifier = classifier.to('cpu')
+        else:
+            raise Exception('Please choose cuda or cpu')
+    
+    def forward(self,x):
+        z_mean,log_var,z = self.encoder.forward(x)
         
-        self.encoder
+        output = self.classifier.forward(z)
+        
+        reconstruction = self.decoder.forward(z)
+        
+        return z_mean,log_var,output,reconstruction
+#%%
+class Loss():
+    
+    def kl_divergence(self,z_mean,log_var):
+        
+        kld =-0.5 * torch.sum(1 +log_var - z_mean.pow(2) - log_var.exp(),dim=1)
+        
+        return kld.mean()
+    
+    def reconstruction_loss(self,x_reconstructed,x):
+        mse_loss = nn.MSELoss() 
+        #print(x_reconstructed)
+        return mse_loss(x_reconstructed,x)
+    
+    def classification_loss (self,y_pred,y_true):
+        loss = nn.BCELoss()
+        return loss(y_pred,y_true)
+    
+    def vae_loss(self,pred,true,label):
+        
+        z_mean,log_var,output,reconstruction_x =pred
+        #print(output,label)
+        recon_loss =  self.reconstruction_loss(reconstruction_x, true)
+        
+        kld_loss = self.kl_divergence(z_mean, log_var)
+        
+        class_loss = self.classification_loss(output,label)
+        
+        return 100*recon_loss + kld_loss + 300*class_loss,class_loss
+#%%
+
+class train():
+    def __init__(self,optimizer,latent_embedding,device,train_loader,lr=1e-3,epochs=40):
+        self.optimizer = optimizer
+        self.lr =  lr
+        self.epochs =epochs
+        self.device = device
+        self.latent_embedding =  latent_embedding
+        self.train_loader = train_loader
+    def training(self):
+        encoder = Encoder((6,14), self.latent_embedding,self.device)
+        decoder = Decoder(self.latent_embedding, (1,20))
+        classifier = Classifier(self.latent_embedding,3)
+        vae = VAE(encoder,classifier,decoder, self.device)
+        los = Loss()
+        opt = self.optimizer
+        optimizer = opt(list(encoder.parameters())+list(decoder.parameters()),
+                                         lr =self.lr)
+        
+        train_loss = []
+        epoch_loss = []
+        accs = []
+        classification_loss =[]
+        for epoch in range(self.epochs):
+            vae.to(self.device)
+            correct = 0
+            for batch_id, (data,target) in enumerate(self.train_loader):
+                data = data.to(self.device)
+                print(data.shape)
+                optimizer.zero_grad()
+                
+                pred= vae.forward(data)
+                
+                loss,class_loss = los.vae_loss(pred,data.float(),target.float())
+                print(class_loss)
+                loss.backward()
+                
+                optimizer.step()
+                
+                train_loss.append(loss.item())
+                classification_loss.append(class_loss.item())
+                
+                b_correct= torch.sum(torch.abs(pred[2]-target) <0.5)
+                correct += b_correct
+                
+            acc = float(correct)/len(self.train_loader)
+            accs.append(acc)   
+            epoch_loss.append(loss/len(self.train_loader))
+            print('Average Train Loss:',np.mean(classification_loss[epoch]),sep=':')
+            print('Accuracy:',acc,sep =':')
+            print('----------------------------------------------------------------')
+    
+            
+        return classifier,accs,train_loss,epoch_loss
+        
         
 #%% Load preprocessed data.  This is the raw data contained in the .edf files after bandpass filtering and application of ICA
 

@@ -25,8 +25,10 @@ import matplotlib.pyplot as plt
 import mne as mne
 #C:\Users\18023\Documents\GitHub\BCI-Project-3
 import plot_topo as pt
-import project_3 as p3
+from project_3 import *
 import pandas as pd
+from torch.utils.data import DataLoader
+import torch.optim as optim
 #%% Load edf file
 #C:\Users\18023\Documents\GitHub\BCI-Project-3\DASPS_Database\Raw data .edf
 subjects = ['06']
@@ -115,12 +117,16 @@ subjects = ['06','09','01','04','05','07','10','11','12','13','14','17','18','19
 electrodes =['AF3','AF4', 'FC5','FC6','P7','P8']
 #%%
 subjects = ['15','20']
-df= p3.load_data_epoch_anxiety_levels(directory ,subjects ,electrodes)
+df= load_data_epoch_anxiety_levels(directory ,subjects ,electrodes)
 #%%
-train_data, train_labels, test_data, test_labels = p3.transformations(df,'randomforest')
+train_data,test_data= transformations(df,'autoencoder')
 #print(next(key for key in df.keys()))
 #%%
-train_labels,test_labels
+train_loader = DataLoader(train_data,batch_size = 1,shuffle=True,drop_last=True)
+optimizer = optim.Adam
+vae = train(optimizer,10,'cpu',train_loader)
+#%%
+model, accs, tl,el = vae.training()
 #print(len(se['eeg'][0][0][0][~np.isnan(se['eeg'][0][0][0])]))
 # TODO numbers do not match 
 # expected 
