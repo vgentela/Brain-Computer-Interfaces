@@ -56,35 +56,35 @@ fig_num = 20
 data = raw_data_edf[2:16,:]     #  Electrode channels start at index 2, end at index 16 for a total of 14 electrodes
 electrodes =['AF3', 'F7', 'F3', 'FC5', 'T7', 'P7', 'O1', 'O2', 'P8', 'T8', 'FC6', 'F4', 'F8', 'AF4']  # based upon the edf file and ref [Asma Baghdadi]
 p3.plot_scalp_map ( subjects, electrodes, data, title, fig_num, data_type = data_type, run = run ,method = method, domain = domain)
-
+plt.savefig(f'Topo_plot_sub_{subject}_run{run}_case_1.png')  
 #Case 2 ref based upon [Farah Muhammand]
 title=f'Case 2:  [Farah Muhammand]; Subject {subject}, Run{run}'
 fig_num = 21
 data = raw_data_edf [[2,3,6,7,12,13],:]
 electrodes = ['AF3','AF4', 'FC5','FC6','P7','P8'] # based upon [Farah Muhammand] 
 p3.plot_scalp_map ( subjects, electrodes, data, title, fig_num, data_type = data_type, run = run ,method = method, domain = domain)
-
+plt.savefig(f'Topo_plot_sub_{subject}_run{run}_case_2.png') 
 # Case 3 Expected Brain Region Respons
 title=f'Case 3: Expected Brain Region Response; Subject {subject}, Run{run}'
 fig_num = 22
 data = raw_data_edf[2:16,:] 
 electrodes =['AF3', 'O1','F7','P7', 'F3','T7', 'FC5','O2','AF4', 'T8', 'F8','P8','F4','FC6'  ]  # Re-order of channels to eliminate asymetrical topo plot
 p3.plot_scalp_map ( subjects, electrodes, data, title, fig_num, data_type = data_type, run = run ,method = method, domain = domain)
-
+plt.savefig(f'Topo_plot_sub_{subject}_run{run}_case_3.png') 
 # Case 4 
 title=f'Case 4: [Asma Baghdadi] and Alpha PSD; Subject {subject}, Run{run}'
 fig_num = 23
 data = raw_data_edf [[2,3,5,8,9],:]  # [Asma Baghdadi] mapping
 electrodes =['AF3','AF4','T8', 'O2' , 'P8' ]  #  PSD 
 p3.plot_scalp_map ( subjects, electrodes, data, title, fig_num, data_type = data_type, run = run ,method = method, domain = domain)
-
+plt.savefig(f'Topo_plot_sub_{subject}_run{run}_case_4.png') 
 # Case 5 
 title=f'Case 5: [Asma Baghdadi] and Expected ; Subject {subject}, Run{run}'
 fig_num = 24
 data = raw_data_edf [[2,10,11,9,13],:]  # Expected mapping
 electrodes =['AF3','AF4','T8', 'O2' , 'P8' ]  # PSD 
 p3.plot_scalp_map ( subjects, electrodes, data, title, fig_num, data_type = data_type, run = run ,method = method, domain = domain)
-
+plt.savefig(f'Topo_plot_sub_{subject}_run{run}_case_5.png') 
 
 #TODO this has not yet been tested 
 # # for mat
