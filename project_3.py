@@ -61,7 +61,7 @@ def loadedf(directory, subjects):
     subject = subjects
     for plot,subject in enumerate(subjects):
     
-    
+   
         filename = f'{directory}S{subject}.edf'
         data_edf = mne.io.read_raw_edf(filename)
         raw_data_edf = data_edf.get_data()
@@ -144,7 +144,7 @@ def plot_edf_data(raw_data_edf,electrode_index = (2,16),subjects=1 ,run=1,fs_edf
 
 def plot_scalp_map ( subject, electrodes, data, title, fig_num, data_type = '.edf', run = 1,method = 'mean', domain = 'time'):
     '''
-    
+   
 
     Parameters
     ----------
@@ -543,7 +543,6 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
    #anxiety_levels = ['Severe','Moderate','Light','Normal']
    
     # The intention of this code is to replicate the labeling flow chart of Fig 5 ref [Asma Baghdadi]
-    #TODO clean up references
     
    subjects_df = {}
    counts = []
@@ -583,52 +582,7 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
                 subjects_df[f'subject'].append(df)
             else:
                 subjects_df[f'{subject}'] = df
-            #TODO get into array format
-            """label_array = np.zeros((4,12)) # [Valence + Arousal + severe_count, + moderate_count + light_count + normal_ count x trials]; [6x12]
-            # Load the valance and arousal data
-            #label_array[0:2,:] = np.array(labels)[0:2,:]   # row[0] = Valence, row[1]=Arousal
-        
-            # sort anxiety levels
-            # Total count per subject = 6 situations x 2 phases X number of subjects 
-            
-            # Start with Anxiety
-            
-            # Severe
-            label_array[2] = np.where((label_array[0,:] <= 2) & (label_array[1,:] >= 7) & (label_array[1,:] <= 9), 1, 0)        # severe
-            severe_count = severe_count + np.sum(label_array[2])         
-            
-            # Moderate
-            label_array[3]=np.where((label_array[0,:] >= 2) & (label_array[0,:] <= 4) & (label_array[1,:] >= 6) & (label_array[1,:] <= 7), 1, 0) #moderate
-            moderate_count = moderate_count + np.sum(label_array[3])  
-            
-            # Light
-            label_array[4]=np.where((label_array[0,:] >= 4) & (label_array[0,:] <= 5) & (label_array[1,:] >= 5) & (label_array[1,:] <= 6), 1, 0) #light
-            light_count = light_count + np.sum(label_array[4])  
-            
-            # Normal anxiety
-            label_array[5]=np.where((label_array[0,:] >= 5) & (label_array[0,:] <= 8) & (label_array[1,:] > 4) & (label_array[1,:] < 7), 1, 0) #normal
-            #label_array[5]=np.where((label_array[0,:] >= 5) & (label_array[1,:] <= 5) & (label_array[1,:] <= 5), 1, 0) #normal
-            #label_array[5]=np.where((label_array[0,:] > 5) & (label_array[1,:] > 5)) 
-            normal_count = normal_count + np.sum(label_array[5])  
-            
-            
-            hamilton = list(h5py.File(filename, "r")['hamilton'])  # The pre and post Hamilton socres as evaluated by therapist 
-            situation = list(h5py.File(filename, "r")['situation']) #This is the number of situations per paridigm
-            
-            # make into an array to facilitate the display of information
-            count = [severe_count,moderate_count,light_count,normal_count]
-            
-            # Whats left is Normal or no anxiety observed in the subject.
-            no_anxiety_count = len(subjects)* 12 - np.sum(count)
-            
-            print(f'Loaded Subject {subject}')      # Provide user feedback
-            
-            #TODO temporary plotting at this stage
-            #plot_PSD (index,electrodes,ds_arr,level = 1,freq_band = [4,20],run = 1, sample_interval=15,fs =128)
-
-            if np.sum(label_array[2]) >0:  #TODO for now plot the PSD if any values are servere
-                plot_PSD (index,electrodes,ds_arr, level = 1,freq_band = [4,20],run = next((index for index,value in enumerate(label_array[2]) if value != 0), None), sample_interval=15,fs =128)"""
-              
+                
             if len(counts) ==0:
                 counts.append(count_tuple)
             else:
@@ -643,53 +597,9 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
    print('light_count:',light_count)
    print('normal_count:',normal_count)
     
-   #TODO not properly dealing with subject 
-  # label the data base
-   
-   # add an axis to ds_arr that contains the anxiety level
-    
-   #ds_arr_anxiety = np.expand_dims(ds_arr,axis = 0)  TODO not the right way to preceed
    return subjects_df
    
- #%% Visualize the data Time Domain #TODO Not much value in viewing the time data 
 
-#     # loop through all 12 situations 6 runs x (recitation = recall)
-#     fs = 128
-#     #Time Domain
-#     sample_size = len(ds_arr[0,:,0]) # TODO assumes same size for all trials
-    
-    
-#     t = np.arange(0,sample_size/fs,1/fs)
-#     num_of_trials = 12                              # trials = 2 x situations
-#     # plt.figure()
-#     for trial in range (num_of_trials):
-#         # print(f"Situation {1+(trial//2)}")              # Convert trials to situations to match excel
-#         # #situation = 0 # the first step in the protocol
-#         # # fs = 128
-#         # # #Time Domain
-#         # # sample_size = len(ds_arr[subject,:,0])
-#         # # t = np.arange(0,sample_size/fs,1/fs)
-#         # #plt.figure(num = situation +4, clear=all)
-#         # plt.figure()
-#         # plt.suptitle(f"Raw Time Domain Subject {subject} Hamilton {Hamilton}")  #??? not loading this field correctly
-#         # plt.title(f"Situation {1+(trial//2)}, Valance = {labels[0][trial]}, Arousal ={labels[1][trial]} ")
-#         # plt.ylabel("Amplitude (uV)")    #TODO is the data in uV?
-#         # plt.ylim([-60,60])
-#         # plt.xlabel("Time (sec)")
-#         # for channel in range(14):
-            
-#         #     plt.plot(t,ds_arr[trial,:,channel],label = (f"Chan {channel}"))
-#         # plt.legend(loc='upper left')
-#         #Freq Domain
-#         T = 2          #TODO sample interval
-#         freq = np.arange(0,((fs/2)+1/fs),1/T)
-#         #plt.figure()
-#         # plt.suptitle(f"Raw Frequency Domain Subject {subject}  Hamilton {Hamilton}")
-#         # plt.title(f"Situation {1+(trial//2)}, Valance = {labels[0][trial//2]}, Arousal ={labels[1][trial//2]} ")
-#         # plt.ylabel("PSD (dB)")
-#         # plt.ylim([0,65])
-#         # plt.xlabel("Freq (Hz)")
-#         # Pre allocated the PSD arrays
  
 def plot_PSD (subject,electrodes,data, level,freq_band = [4,20], run = 1, sample_interval=15, fs =128):
     '''
@@ -757,71 +667,7 @@ def plot_PSD (subject,electrodes,data, level,freq_band = [4,20], run = 1, sample
 
 
 
-#%% This does not work ...showed this to Dr J.  He suggested that the info be plotted on the x-axis or use other methods such as violin plots.
 
-def plot_PSD_by_anxiety (subject, electrodes, anxiet_level, PSD_band ,run = 1):
-#   count = [0,0,0,0]    # make into an array to facilitate the display of information
-    plt.figure(num = 1000, clear=all) 
-# #            # print (f'{situation+1},{channel}')  # TODO test
-# #            # print(f'{PSD[0]}')                  #TODO test
-         
-# #             #plt.plot(alpha_band,label = (f'Channel = {channel} Alpha Band'))
-# #             #plt.plot(high_beta_band,label = ("Beta Band"))
-            
-# #             # Plot all four anxiety levels in subplots
-                
-#     for plot,anxiety in enumerate (anxiety_levels):
-#         print(f'plot {plot}, anxiety {anxiety}')
-#         #TODO not sure if I need this if statement.
-#         if label_array[plot+2,trial]:  # plot trials associated with sever anxiety= 2, moderate = 3 ,light = 4  and normal = 5    index into label array
-#             plt.subplot(2, 2, plot+1)
-#             #TODO only want slected channels
-#             plt.plot(PSD_band[0:len(electrodes)],'.')#,label = ("4-20 Hz"))  ... add a dot to the associatded subplot
-        
-#               # Take the mean across all trials  #TODO
-#              #        psd_sum[plot] = psd_sum[plot] +  less_20_hz[0:len(electrodes)]
-        
-#             plt.xlabel("Channel")
-#             plt.xticks(np.arange(len(electrodes)),electrodes) #[0,1,2,3,4,5,6,7,8,9,10,11,12,13], electrodes)
-                  
-#             plt.ylabel ('PSD (dB)')
-#             plt.ylim([10,70])  #TODO problem plots zero for each channel then correct value
-#                 #plt.suptitle (f'Power in the Bands Trial {trial + 1} Subject {subject}') # Indicate Trial number index starting from 1
-# #                     plt.suptitle (f'PSD 4-20 Hz Band;All Subjects; All Trials; Time Interval {T} sec')  #normal, light, severe
-                            
-# #                     plt.title (f'Anxiety Level {anxiety}; Qty {count[plot]}')    
-             
-
-        
-#             # if label_array[2,trial]:  # plot trials associated with sever anxiety= 2, moderate = 3 ,light = 4  and normal = 5    index into label array
-#             #     plt.plot(less_20_hz,'.')#,label = ("4-20 Hz"))
-#     # plt.xlabel("Channel")
-#     # plt.xticks([0,1,2,3,4,5,6,7,8,9,10,11,12,13], electrodes)
-#     # plt.ylabel ('PSD (dB)')
-#     # plt.ylim([10,70])  #TODO problem plots zero for each channel then correct value
-#     # #plt.suptitle (f'Power in the Bands Trial {trial + 1} Subject {subject}') # Indicate Trial number index starting from 1
-#     # plt.suptitle (f'PSD 4-20 Hz Band for Light Anxiety Qty {light_count}')  #normal, light, severe
-#     # plt.title (f'All Subjects; All Trials Time Interval {T} sec')
-#     # #plt.title ('AF3, AF4, F3, F4, FC5, FC6, F7, F8, T7, T8, P7, P8, O1, O2')
-#     # plt.label =  (f'{subject}')
-#     # #plt.legend(loc='upper right') 
-    
-#     #Save figure 
-#     fig.tight_layout()
-#     plt.savefig(f'20Hz_PSD_All_Subjects_All_Channels_T_{T}.png')          #TODO Light Severe
-#      # ....then show  
-#     plt.show()
-    
-    
-#     #TODO Plotting of the mean does not work correctly yet  
-    
-#     # To aid visual inspoection, plot anxiety levels on the x axis and 
-#     plt.figure(num = 1000)
-    
-#         #for plot,anxiety in enumerate (anxiety_levels): 
-#     psd_mean = np.divide(psd_sum[plot,0:8],count[plot])/12      # To get the mean divide the sum for each electrode by number of (trials * count )  
-          
-#     plt.plot(psd_mean[plot:len(electrodes)],'rp', markersize=14)  
 
 
 

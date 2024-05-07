@@ -86,11 +86,6 @@ electrodes =['AF3','AF4','T8', 'O2' , 'P8' ]  # PSD
 p3.plot_scalp_map ( subjects, electrodes, data, title, fig_num, data_type = data_type, run = run ,method = method, domain = domain)
 plt.savefig(f'Topo_plot_sub_{subject}_run{run}_case_5.png') 
 
-#TODO this has not yet been tested 
-# # for mat
-# data = ds_arr
-
-
 
 #%% Visualize the edf dataset in time and frequency domain
 
