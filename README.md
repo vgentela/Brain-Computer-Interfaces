@@ -31,6 +31,6 @@ This is a function that takes directory and subjects as parameters and returns d
 
 **Notes:**
 - The Trials were performed with (12) 6 stimuli, in  2 stages (recitation, recall)
-- electrodes: 14 (+2 references) sensors placed at this locations: AF3, AF4, F3, F4, FC5, FC6, F7, F8, T7, T8, P7, P8, O1, O2 with a sampling rate of 128 SPS (2048 Hz internal) and a resolution of 14 bits 1 LSB = 0.51μV. Emotiv Epoc is a wireless device with 2.4GHz band.
+- electrodes: 14 (+2 references) sensors placed at this locations: AF3, F7, F3, FC5, T7, P7, O1, O2, P8, T8, FC6, F4, F8, AF4 with a sampling rate of 128 SPS (2048 Hz internal) and a resolution of 14 bits 1 LSB = 0.51μV. Emotiv Epoc is a wireless device with 2.4GHz band.
 - A 4-45 hz Finite impulse response (FIR) pass-band filter was applied to the raw data
 -The Automatic Artifact removal for EEGLAB toolbox (AAR) was used to remove EOG and EMG artifacts.
