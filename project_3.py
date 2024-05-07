@@ -257,39 +257,41 @@ def labelling(data,labels):
 #%%
 def transformations(df,model):
     
-    key= next(key for key in df.keys())
+    keys= list(key for key in df.keys())
+  
     bpower = tfs.BandPowerSpectralDensity(128,band_dict={'alpha': [8, 14], 'beta': [14, 31], 'gamma': [31, 49]})
     de = tfs.BandDifferentialEntropy(128,band_dict={'alpha': [8, 14], 'beta': [14, 31], 'gamma': [31, 49]})
-
-      
-    eeg_data = df[f'{key}'].drop(['valence','arousal','Anxiety_level'],axis=1)
-    
-    normalized_eeg = eeg_data.apply(lambda x: x-np.mean(x),axis =1).to_numpy()
-    
-    normalized_eeg = normalized_eeg.reshape(12,1920,14)
-    
-    anxiety_degree = df[f'{key}']['Anxiety_level'][~pd.isna(df[f'{key}']['Anxiety_level'])]
-
-    labels = pd.get_dummies(anxiety_degree).to_numpy()
-
-    labels = labels.reshape(12,labels.shape[1])
     
     trial_band_powers=[]
     trial_entropys =[]
+    combined_labels= pd.DataFrame()
+    for key in keys:
+        eeg_data = df[f'{key}'].drop(['valence','arousal','Anxiety_level'],axis=1)
+        
+        normalized_eeg = eeg_data.apply(lambda x: x-np.mean(x),axis =1).to_numpy()
+        #print(len(normalized_eeg))
+        normalized_eeg = normalized_eeg.reshape(12,1920,14)
+        
+        anxiety_degree = df[f'{key}']['Anxiety_level'][~pd.isna(df[f'{key}']['Anxiety_level'])]
+        combined_labels = pd.concat([combined_labels,anxiety_degree])
     
-    for trial in normalized_eeg:
-        
-        powers =bpower(eeg=trial.T)
-        band_powers = powers['eeg']
-        
-        
-        differential_entropy = de(eeg=trial.T)    
-        band_entropys = differential_entropy['eeg']
-        
-        trial_band_powers.append(band_powers)
-        trial_entropys.append(band_entropys)
-        
-        
+       
+        for trial in normalized_eeg:
+            
+            powers =bpower(eeg=trial.T)
+            band_powers = powers['eeg']
+            
+            
+            differential_entropy = de(eeg=trial.T)    
+            band_entropys = differential_entropy['eeg']
+            
+            trial_band_powers.append(band_powers)
+            trial_entropys.append(band_entropys)
+    print(combined_labels) 
+    labels = pd.get_dummies(combined_labels).to_numpy()
+    print(labels)
+    #labels = labels.reshape(12,labels.shape[1])  
+    
     if model == 'autoencoder':
         
         band_tensors = torch.tensor(trial_band_powers)
@@ -316,6 +318,7 @@ def transformations(df,model):
         entropy_arrays = np.asarray(trial_entropys)
         
         features = np.transpose(np.concatenate((band_arrays,entropy_arrays),axis=2),(0,2,1))
+        #labels = np.stack(labels)
         print(len(features),len(labels))
         
         train_data, test_data, train_labels, test_labels = train_test_split(features,labels,test_size=0.3)
@@ -371,6 +374,7 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
     #TODO clean up references
     
    subjects_df = {}
+   counts = []
    for index,subject in enumerate(subjects):
         
     
@@ -452,11 +456,20 @@ def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
 
             if np.sum(label_array[2]) >0:  #TODO for now plot the PSD if any values are servere
                 plot_PSD (index,electrodes,ds_arr, level = 1,freq_band = [4,20],run = next((index for index,value in enumerate(label_array[2]) if value != 0), None), sample_interval=15,fs =128)"""
-            severe_count,moderate_count,light_count,normal_count = count_tuple   
-            print('severe count:',severe_count)
-            print('moderate_count:',moderate_count)
-            print('light_count:',light_count)
-            print('normal_count:',normal_count)
+              
+            if len(counts) ==0:
+                counts.append(count_tuple)
+            else:
+                count= counts.pop()
+                updated_count = tuple(map(sum,zip(count,count_tuple)))
+                counts.append(updated_count)
+            
+   print(counts)
+   severe_count,moderate_count,light_count,normal_count = counts[0] 
+   print('severe count:',severe_count)
+   print('moderate_count:',moderate_count)
+   print('light_count:',light_count)
+   print('normal_count:',normal_count)
     
    #TODO not properly dealing with subject 
   # label the data base

@@ -114,13 +114,13 @@ electrodes =['AF3', 'O1','F7','P7', 'F3','T7','FC5','O2','AF4','T8', 'F8','P8','
 subjects = ['06','09','01','04','05','07','10','11','12','13','14','17','18','19','20','21','02','03','08','15','16','22','23']
 electrodes =['AF3','AF4', 'FC5','FC6','P7','P8']
 #%%
-subjects = ['15']
+subjects = ['15','20']
 df= p3.load_data_epoch_anxiety_levels(directory ,subjects ,electrodes)
 #%%
 train_data, train_labels, test_data, test_labels = p3.transformations(df,'randomforest')
 #print(next(key for key in df.keys()))
 #%%
-train_labels[4]
+train_labels,test_labels
 #print(len(se['eeg'][0][0][0][~np.isnan(se['eeg'][0][0][0])]))
 # TODO numbers do not match 
 # expected 
