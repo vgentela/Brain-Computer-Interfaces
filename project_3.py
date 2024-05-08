@@ -25,6 +25,7 @@ import numpy as np
 import h5py
 #import seaborn as sb
 import matplotlib.pyplot as plt
+import seaborn as sns
 import mne as mne
 import pandas as pd
 from torcheeg import transforms as tfs
@@ -36,8 +37,9 @@ from torch.distributions import Normal
 import torch.optim as optim
 from sklearn.ensemble import RandomForestClassifier as rfc
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix,f1_score,recall_score,accuracy_score
+from sklearn.metrics import precision_score,f1_score,recall_score,accuracy_score,confusion_matrix,roc_curve,auc
 from sklearn.model_selection import GridSearchCV as gsv
+from sklearn.svm import SVC
 #%% Load .edf file
 #TODO ensure that the dataset is in the correct directory. C:\Users\18023\Documents\GitHub\BCI-Project-3\DASPS_Database\Raw data .edf
 #file = "S06.edf"
@@ -218,7 +220,18 @@ def clear_all_figures():
         plt.close(fig_num)
 #%%
 def labelling(data,labels):
-    
+    """
+   Label the EEG data based on the anxiety levels extracted from labels.
+   
+   Args:
+       data (list): List of EEG data samples.
+       labels (ndarray): Array of anxiety levels corresponding to each data sample.
+       
+   Returns:
+       DataFrame: DataFrame containing the labeled EEG data.
+       tuple: A tuple containing the count of samples for each anxiety level category (severe, moderate, light, normal).
+   """
+   
     data = np.vstack(data[:])
     labels = labels.T
     
@@ -263,8 +276,20 @@ def labelling(data,labels):
     
     return df,(severe_count,moderate_count,light_count,normal_count)
 #%%
-def transformations(df,model,split_ratio= None, test_size = None,train_batch_size =None,test_batch_size =None):
+def transformations(df,model,split_ratio= None, test_size = None):
+    """
+    Transform the raw EEG data into features suitable for either autoencoder or random forest models.
     
+    Args:
+        df (DataFrame): DataFrame containing the raw EEG data.
+        model (str): Model type to transform the data for ('autoencoder' or 'randomforest').
+        split_ratio (float, optional if using randomforest): Ratio to split the data into training and testing sets (only for autoencoder).
+        test_size (float, optional if using autoencoder): Proportion of the dataset to include in the test split (only for randomforest).
+        
+    Returns:
+        tuple: Tuple containing the transformed training and testing data (for autoencoder) or 
+               training data, training labels, testing data, and testing labels (for randomforest).
+    """
     keys= list(key for key in df.keys())
   
     bpower = tfs.BandPowerSpectralDensity(128,band_dict={'alpha': [8, 14], 'beta': [14, 31], 'gamma': [31, 49]})
@@ -277,7 +302,7 @@ def transformations(df,model,split_ratio= None, test_size = None,train_batch_siz
     for key in keys:
         eeg_data = df[f'{key}'].drop(['valence','arousal','Anxiety_level'],axis=1)
         
-        normalized_eeg = eeg_data.apply(lambda x: x-np.mean(x),axis =1).to_numpy()
+        normalized_eeg = eeg_data.apply(lambda x: (x-np.mean(x))/np.std(x),axis =1).to_numpy()
         #print(len(normalized_eeg))
         normalized_eeg = normalized_eeg.reshape(12,1920,14)
         
@@ -296,7 +321,7 @@ def transformations(df,model,split_ratio= None, test_size = None,train_batch_siz
             
             trial_band_powers.append(band_powers)
             trial_entropys.append(band_entropys)
-    #print(combined_labels) 
+    #print(combined_labels)
     labels = pd.get_dummies(combined_labels).to_numpy()
     #print(labels)
     #labels = labels.reshape(12,labels.shape[1])  
@@ -320,10 +345,8 @@ def transformations(df,model,split_ratio= None, test_size = None,train_batch_siz
         
         train_data, test_data = random_split(dataset,split_ratio)
         
-        train_loader = DataLoader(train_data,batch_size=train_batch_size,shuffle =True,drop_last=True)
-        test_loader = DataLoader(test_data,batch_size = test_batch_size, shuffle =True, drop_last=True)
         
-        return train_loader, test_loader
+        return train_data,test_data
         
     elif model =='randomforest':
         band_arrays = np.asarray(trial_band_powers)
@@ -344,30 +367,47 @@ def transformations(df,model,split_ratio= None, test_size = None,train_batch_siz
 
 #%%
 class Encoder(nn.Module):
+    """
+    Neural network encoder module for extracting latent representations from EEG data.
     
-    def __init__(self,input_size,latent_embedding,device):
+    Args:
+        input_dim (int): Input dimensionality of the EEG data.
+        hidden_dims (list): List of hidden layer dimensions for the encoder network.
+        latent_dim (int): Dimensionality of the latent space.
+        device (str): Device to use for computations ('cuda' or 'cpu').
+    """
+    
+    def __init__(self, input_dim, hidden_dims, latent_dim, device):
         super().__init__()
-        
-        self.linear1 = nn.Linear(input_size[0]*input_size[1],50)
-        self.linear2 = nn.Linear(50,20)
-        self.flatten = nn.Flatten()
-        self.z_mean = nn.Linear(20,latent_embedding)
-        self.log_var =nn.Linear(20,latent_embedding)
-        #print(latent_embedding[0])
         self.device = device
+        self.linear1 = nn.Linear(input_dim, hidden_dims[0])
+        self.linear2 = nn.Linear(hidden_dims[0], hidden_dims[1])
+        self.z_mean = nn.Linear(hidden_dims[1], latent_dim)
+        self.log_var = nn.Linear(hidden_dims[1], latent_dim)
+
         
     def forward(self,inputs):
-        inputs = F.relu(self.linear1(inputs.float().flatten(1)))
+        """
+        Forward pass of the encoder module.
+        
+        Args:
+            inputs (Tensor): Input EEG data.
+            
+        Returns:
+            tuple: Tuple containing the mean and log variance of the latent space and the sampled latent vector.
+        """
+        
+        inputs = F.relu(self.linear1(inputs.float().view(inputs.size(0), -1)))
         #print(inputs.shape)
         inputs = F.relu(self.linear2(inputs))
         #print(inputs.shape)
-        inputs = self.flatten(inputs)
+        #inputs = self.flatten(inputs)
        
         z_mean = self.z_mean(inputs).to(self.device)
         log_var = self.log_var(inputs).to(self.device)
         
-        batch, dim = z_mean.shape
-        epsilon = Normal(0, 1).sample((batch,dim)).to(self.device)
+       
+        epsilon = Normal(0, 1).sample(z_mean.shape).to(self.device)
         
         z = z_mean + torch.exp(0.5 * log_var) * epsilon
         #print(z)
@@ -375,104 +415,207 @@ class Encoder(nn.Module):
         
 #%%
 class Decoder(nn.Module):
-    def __init__(self,embedding_dim,orig_dim):
-        super().__init__()
-   
-        self.linear1 = nn.Linear(embedding_dim,orig_dim[0]*orig_dim[1])
-        self.reshape = lambda x: x.view(-1,orig_dim[0],orig_dim[1])
-        self.linear2 = nn.Linear(20, 50)
-        self.linear3 = nn.Linear(50,84)
-        
+    """
+    Neural network decoder module for reconstructing EEG data from latent representations.
     
+    Args:
+        latent_dim (int): Dimensionality of the latent space.
+        output_dim (int): Dimensionality of the output EEG data.
+    """
+    def __init__(self, latent_dim, output_dim):
+        super().__init__()
+        self.linear1 = nn.Linear(latent_dim, output_dim)
+
+       
+
     def forward(self,latent_vector):
-        latent_vector = self.linear1(latent_vector.float())
-        latent_vector = self.reshape(latent_vector)
-        latent_vector= F.relu(self.linear2(latent_vector))
-        latent_vector = torch.sigmoid(self.linear3(latent_vector))
+        """
+        Forward pass of the decoder module.
         
-        return latent_vector.view(-1,6,14)
+        Args:
+            latent_vector (Tensor): Latent representation vector.
+            
+        Returns:
+            Tensor: Reconstructed EEG data.
+        """
+        latent_vector = self.linear1(latent_vector)
+        
+        return torch.sigmoid(latent_vector).view(-1, 6, 14) 
+   
 #%%
 class Classifier(nn.Module):
+    """
+   Neural network classifier module for predicting anxiety levels from latent representations.
+   
+   Args:
+       embedding_dim (int): Dimensionality of the latent space.
+       hidden_dim (list): List of hidden layer dimensions for the classifier network.
+       target_number (int): Number of target classes.
+   """
     
-    def __init__(self,embedding_dim,target_number):
+    def __init__(self,embedding_dim,hidden_dim,target_number):
         super().__init__()
-        self.linear1 = nn.Linear(embedding_dim,7)
-        self.linear2 = nn.Linear(7,target_number)
+        self.linear1 = nn.Linear(embedding_dim,hidden_dim[0])
+        self.linear2 = nn.Linear(hidden_dim[0],hidden_dim[1])
+        self.linear3 = nn.Linear(hidden_dim[1],10)
+        self.linear4 = nn.Linear(10,target_number)
+        
     def forward(self,z):
+        """
+       Forward pass of the classifier module.
+       
+       Args:
+           z (Tensor): Latent representation vector.
+           
+       Returns:
+           Tensor: Predicted probabilities for each target class.
+       """
+
         z = self.linear1(z)
         z = F.relu(self.linear2(z))
-        return torch.sigmoid(z)
+        z  =F.relu(self.linear3(z))
+        return torch.sigmoid(self.linear4(z))
+
 #%%
 
 class VAE(nn.Module):
-    def __init__(self,encoder,classifier,decoder,device):
+    """
+    Variational autoencoder (VAE) module for jointly learning latent representations and reconstructing EEG data.
+    
+    Args:
+        encoder (Encoder): Encoder module.
+        decoder (Decoder): Decoder module.
+        device (str): Device to use for computations ('cuda' or 'cpu').
+    """
+    
+    def __init__(self,encoder,decoder,device):
         super().__init__()
         if device =='cuda' and torch.cuda.is_available():
             self.encoder = encoder.to('cuda')
             self.decoder = decoder.to('cuda')
-            self.classifier = classifier.to('cuda')
         elif device == 'cpu':
             self.encoder = encoder.to('cpu')
             self.decoder = decoder.to('cpu')
-            self.classifier = classifier.to('cpu')
+            
         else:
             raise Exception('Please choose cuda or cpu')
     
     def forward(self,x):
+        """
+       Forward pass of the VAE module.
+       
+       Args:
+           x (Tensor): Input EEG data.
+           
+       Returns:
+           tuple: Tuple containing the mean and log variance of the latent space and the reconstructed EEG data.
+       """
+
         z_mean,log_var,z = self.encoder.forward(x)
         
-        output = self.classifier.forward(z)
+        #output = self.classifier.forward(z)
         
         reconstruction = self.decoder.forward(z)
         
-        return z_mean,log_var,output,reconstruction
+        return z_mean,log_var,reconstruction
 #%%
 class Loss():
+    """
+   Loss function class for calculating VAE loss.
+   """
     
-    def kl_divergence(self,z_mean,log_var):
+    @staticmethod
+    def kl_divergence(z_mean, log_var):
+        return -0.5 * torch.sum(1 + log_var - z_mean.pow(2) - torch.exp(log_var), dim=1).mean()
+
+    @staticmethod
+    def reconstruction_loss(x_reconstructed, x):
+        return nn.MSELoss()(x_reconstructed, x)
+
+    @staticmethod
+    def classification_loss(y_pred, y_true):
+        return nn.BCELoss()(y_pred, y_true)
+
+
+    
+    def vae_loss(self,pred,true):
+        """
+        Calculate VAE loss.
         
-        kld =-0.5 * torch.sum(1 +log_var - z_mean.pow(2) - log_var.exp(),dim=1)
-        
-        return kld.mean()
-    
-    def reconstruction_loss(self,x_reconstructed,x):
-        mse_loss = nn.MSELoss() 
-        #print(x_reconstructed)
-        return mse_loss(x_reconstructed,x)
-    
-    def classification_loss (self,y_pred,y_true):
-        loss = nn.BCELoss()
-        return loss(y_pred,y_true)
-    
-    def vae_loss(self,pred,true,label):
-        
-        z_mean,log_var,output,reconstruction_x =pred
+        Args:
+            pred (tuple): Tuple containing the mean and log variance of the latent space and the reconstructed data.
+            true (Tensor): True EEG data.
+            
+        Returns:
+            Tensor: VAE loss.
+        """
+
+        z_mean,log_var,reconstruction_x =pred
         #print(output,label)
         recon_loss =  self.reconstruction_loss(reconstruction_x, true)
         
         kld_loss = self.kl_divergence(z_mean, log_var)
         
-        class_loss = self.classification_loss(output,label)
+        #class_loss = self.classification_loss(output,label)
         
-        return 1*recon_loss + kld_loss + 3*class_loss,class_loss
+        return recon_loss + kld_loss
 #%%
 
 class train():
-    def __init__(self,optimizer,latent_embedding,device,train_loader,lr=1e-4,epochs=60):
-        self.optimizer = optimizer
+    """
+   Trainer class for training the VAE model.
+   
+   Args:
+       hidden_dimensions (list): List of hidden layer dimensions for the encoder and decoder networks.
+       latent_embedding (int): Dimensionality of the latent space.
+       device (str): Device to use for computations ('cuda' or 'cpu').
+       train_data (TensorDataset): Training dataset.
+       max_grad_norm (float): Maximum gradient norm for gradient clipping.
+       lr (float, optional): Learning rate for optimization.
+       epochs (int, optional): Number of training epochs.
+       patience (int, optional): Patience for early stopping.
+   """
+   
+    def __init__(self,hidden_dimensions,latent_embedding,device,train_data,max_grad_norm,lr=1e-4,epochs=1000,patience=10):
+   
         self.lr =  lr
         self.epochs =epochs
         self.device = device
         self.latent_embedding =  latent_embedding
-        self.train_loader = train_loader
+        self.hidden_dimensions =hidden_dimensions
+        self.train_data = train_data
+        self.patience = patience
+        self.best_loss = float('inf')
+        self.counter = 0
+        self.max_grad_norm= max_grad_norm
+        self.train_loader =  self.dataloader()
+        
+    def dataloader(self):
+        """
+        Generates a DataLoader from the train dataset.
+        
+        Returns
+        -------
+        train_loader(DataLoader) : Uses torch's DataLoader and converts the train dataset
+        into a DataLoader.
+
+        """
+        train_loader = DataLoader(self.train_data,batch_size=15,shuffle=True,drop_last=True)
+        return train_loader
+    
     def training(self):
-        encoder = Encoder((6,14), self.latent_embedding,self.device)
-        decoder = Decoder(self.latent_embedding, (1,20))
-        classifier = Classifier(self.latent_embedding,4)
-        vae = VAE(encoder,classifier,decoder, self.device)
+        """
+        Training method for the VAE model.
+        
+        Returns:
+            tuple: Tuple containing the trained encoder, training losses, and epoch losses.
+        """
+        encoder = Encoder(84,self.hidden_dimensions, self.latent_embedding,self.device)
+        decoder = Decoder(self.latent_embedding, 84)
+        vae = VAE(encoder,decoder, self.device)
         los = Loss()
-        opt = self.optimizer
-        optimizer = opt(list(encoder.parameters())+list(decoder.parameters()),
+       
+        optimizer = optim.Adam(list(encoder.parameters())+list(decoder.parameters()),
                                          lr =self.lr)
         
         train_loss = []
@@ -481,7 +624,9 @@ class train():
         classification_loss =[]
         for epoch in range(self.epochs):
             vae.to(self.device)
+            vae.train()
             correct = 0
+            total_samples=0
             for batch_id, (data,target) in enumerate(self.train_loader):
                 data = data.to(self.device)
                 target = target.to(self.device)
@@ -489,179 +634,588 @@ class train():
                 optimizer.zero_grad()
                 
                 pred= vae.forward(data)
+                #_,_,output,_  =  pred
+           
+                loss = los.vae_loss(pred,data.float())
                 
-                loss,class_loss = los.vae_loss(pred,data.float(),target.float())
+                #class_loss.backward()
                 #print(class_loss)
                 loss.backward()
                 
+                torch.nn.utils.clip_grad_norm_(list(encoder.parameters())+list(decoder.parameters()), self.max_grad_norm)
                 optimizer.step()
                 
                 train_loss.append(loss.item())
-                classification_loss.append(class_loss.item())
+                #classification_loss.append(class_loss.item())
+              
+                #b_correct= torch.sum(torch.abs(output-target) <0.5).item()
+                #correct += b_correct
+                #total_samples += data.size(0)
                 
-                b_correct= torch.sum(torch.abs(pred[2]-target) <0.5)
-                correct += b_correct
-                
-            acc = float(correct)/len(self.train_loader)
-            accs.append(acc)   
-            epoch_loss.append(loss/len(self.train_loader))
+            #acc = float(correct)/len(self.train_data)
+            #accs.append(acc)   
+            epoch_loss.append(np.mean(train_loss))
             
-            print('Accuracy:',acc,sep =':')
-            print('Average Combined Loss:',np.mean(train_loss[epoch]))
-            print('Average Classification Loss:',np.mean(classification_loss[epoch]),sep=':')
+    
+        
+
+            print('Beginning Epoch',epoch)
+            #print('Classification Accuracy:',acc,sep =':')
+            print('Average Combined Loss:',np.mean(epoch_loss[-1]))
+            #print('Average Classification Loss:',np.mean(classification_loss),sep=':')
             print('----------------------------------------------------------------')
     
-            
-        return classifier,accs,train_loss,epoch_loss
+       
+            """if loss.item() < self.best_loss:
+                self.best_loss = loss.item()
+                self.counter = 0
+            else:
+                self.counter += 1
+                if self.counter >= self.patience:
+                    print(f'Early stopping at epoch {epoch}')
+                    break"""
         
+        plt.figure(figsize=(10,6))
+        #plt.plot(list(range(self.epochs)),accs,label = 'Accuracy')
+        plt.plot(list(range(self.epochs)),epoch_loss,label = 'Loss')
+        plt.legend()
+        plt.title('VAE Training')
+        plt.tight_layout()
+        plt.show()
+        plt.savefig('encoder_acc_loss.png')
+        return encoder,train_loss,epoch_loss
+#%%
+class latent_training():
+    """
+    Trainer class for training the classifier using latent representations.
+    
+    Args:
+        encoder (Encoder): Encoder module for extracting latent representations.
+        embedding_dimension (int): Dimensionality of the latent space.
+        hidden_dim (list): List of hidden layer dimensions for the classifier network.
+        target_dim (int): Dimensionality of the target space.
+        train_data (TensorDataset): Training dataset.
+        device (str): Device to use for computations ('cuda' or 'cpu').
+        loss (nn.Module, optional): Loss function for training.
+        lr (float, optional): Learning rate for optimization.
+        epochs (int, optional): Number of training epochs.
+    """
+    
+    def __init__(self,encoder,embedding_dimension,hidden_dim,target_dim,train_data,device,loss=nn.BCELoss(),lr =1e-2, epochs = 30):
+        self.classifier = Classifier(embedding_dimension, hidden_dim, target_dim)
+        self.train_data = train_data
+        self.train_loader = self.data_loader()
+        self.epochs = epochs
+        self.encoder = encoder
+        self.lr = lr
+        self.loss = loss
+        self.device = device
+        
+    def data_loader(self):
+        """
+        Generates a DataLoader from the train dataset.
+        
+        Returns
+        -------
+        train_loader(DataLoader) : Uses torch's DataLoader and converts the train dataset
+        into a DataLoader.
+
+        """
+        return DataLoader(self.train_data,batch_size=15,shuffle=True,drop_last=True)
+    
+    def train(self):
+        """
+        Training method for the classifier using latent representations.
+        
+        Returns:
+            tuple: Tuple containing the trained classifier, accuracies, and epoch losses.
+        """
+        
+        train_losses=[]
+        accs = []
+        epoch_loss= []
+        
+        preds = []
+        targets = []
+        optimizer = optim.Adam(self.classifier.parameters(),lr=self.lr)
+        
+        self.classifier.to(self.device)
+        self.encoder.eval()
+        self.classifier.train()
+        
+        for epoch in range(self.epochs):    
+            
+            correct = 0
+            total_samples =0    
+            for batch_id, (data,target) in enumerate(self.train_loader):
+                data = data.to(self.device)
+                target = target.to(self.device)
+                #print(data.shape)
+                optimizer.zero_grad()
+                
+                z = self.encoder(data)
+                
+                #_,_,output,_  =  pred
+                output = self.classifier(z[2])
+                preds.extend(output)
+                targets.extend(target)
+                
+                train_loss = self.loss(output,target.float())
+                
+                #class_loss.backward()
+                #print(class_loss)
+                train_loss.backward()
+                
+                #torch.nn.utils.clip_grad_norm_(, self.max_grad_norm)
+                optimizer.step()
+                
+                train_losses.append(train_loss.item())
+               
+                
+                predicted_labels = output.round()  # Assuming binary classification
+
+        # Calculate number of correct predictions
+                correct += (predicted_labels == target).sum().item()
+                total_samples += target.size(0)
+                
+            # Calculate accuracy for the epoch
+            acc = correct / total_samples
+            accs.append(acc)
+            epoch_loss.append(np.mean(train_losses[-len(self.train_loader):]))  # Average loss for the epoch
+        
+            print(f'Beginning Epoch {epoch}')
+            #print(f'Classifier Accuracy: {acc:.4f}')
+            print(f'Classifier Average Loss: {np.mean(train_losses[-len(self.train_loader):]):.4f}')
+            print('----------------------------------------------------------------')
+
+            
+        plt.figure(figsize=(10,6))
+        #plt.plot(list(range(self.epochs)),accs,label = 'Accuracy')
+        plt.plot(list(range(self.epochs)),epoch_loss,label = 'Loss')
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+        plt.savefig('classifier_acc_loss.png')
+        return self.classifier,accs,epoch_loss
 #%%
 class randomforest():
+    """
+    Random forest classifier for anxiety level prediction.
     
-    def __init__(self,n_estimators,criterion,max_depth,class_weight,scoring):
+    Args:
+        n_estimators (int): Number of trees in the forest.
+        criterion (str): Criterion for measuring the quality of a split.
+        max_depth (int): Maximum depth of the trees.
+        scoring (str): Scoring metric for model evaluation.
+    """
+    
+    def __init__(self,n_estimators,criterion,max_depth,scoring):
         self.n_estimators = n_estimators
         self.criterion =  criterion
         self.max_depth = max_depth
-        self.class_weight = class_weight
+        #self.class_weight = class_weight
         self.scoring = scoring
         self.forest = rfc(criterion=self.criterion)
-        self.grid  = gsv(self.forest,[{'n_estimators':n_estimators},{'max_depth':self.max_depth},{'class_weight':self.class_weight}],scoring=self.scoring)
+        self.grid  = gsv(self.forest,[{'n_estimators':n_estimators},{'max_depth':self.max_depth}],scoring=self.scoring)
     
     def r_forest(self,x_train,y_train,x_test,y_test):
+        """
+        Train and evaluate the random forest classifier.
         
-        model = self.grid.fit(x_train,y_train).best_estimator_
+        Args:
+            x_train (array_like): Training data features.
+            y_train (array_like): Training data labels.
+            x_test (array_like): Test data features.
+            y_test (array_like): Test data labels.
+        
+        Returns:
+            model: Trained random forest model.
+            best_params: Best parameters found during grid search.
+            test_accuracy: Accuracy of the model on the test data.
+        """
+        
+        x_train = x_train.reshape(x_train.shape[0],-1)
+        x_test = x_test.reshape(x_test.shape[0],-1)
+        print(x_train.shape,x_test.shape)
+        
+        self.grid.fit(x_train,y_train)
+        
+        model = self.grid.best_estimator_
         
         best_params = self.grid.best_params_
         
-        pred = model.predict_proba(x_test)
+        train_pred = model.predict(x_train)
+        train_acc = accuracy_score(y_train,train_pred)
         
-        score = self.grid.score(pred,y_test)
+        test_pred = model.predict(x_test)
+        test_accuracy = accuracy_score(y_test, test_pred)
         
-        print('Recall score on the test data:', score)
+        train_labels = np.argmax(y_train,axis =1)
+        train_pred_labels = np.argmax(train_pred,axis =1 )
         
-        return model,best_params,score
+        test_labels = np.argmax(y_test,axis=1)
+        pred_labels = np.argmax(test_pred,axis=1)
+        #print(pred_labels)
+        
+        test_conf = confusion_matrix(test_labels, pred_labels)
+        train_conf = confusion_matrix(train_labels, train_pred_labels)
+        
+        fpr, tpr, thresholds = roc_curve(y_test.ravel(), test_pred.ravel())
+        roc_auc = auc(fpr, tpr)
+        
+        train_precision = precision_score(train_labels, train_pred_labels, average=None)
+        train_sensitivity = recall_score(train_labels, train_pred_labels, average=None)
+        
+        test_precision = precision_score(test_labels, pred_labels,average =None)
+        test_sensitivity = recall_score(test_labels, pred_labels, average=None)
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2)
+
+        sns.heatmap(test_conf, annot=True, cmap='magma', xticklabels=['light', 'moderate', 'normal', 'severe'], yticklabels=['light', 'moderate', 'normal', 'severe'], ax=ax1)
+        ax1.set_title('Test Confusion Matrix')
+        ax1.set_xlabel('Predicted Label')
+        ax1.set_ylabel('True Label')
+        
+        sns.heatmap(train_conf, annot=True, cmap='vlag', xticklabels=['light', 'moderate', 'normal', 'severe'], yticklabels=['light', 'moderate', 'normal', 'severe'], ax=ax2)
+        ax2.set_title('Train Confusion Matrix')
+        ax2.set_xlabel('Predicted Label')
+        ax2.set_ylabel('True Label')
+        
+        plt.tight_layout()
+        plt.savefig('Rforest_confusion_matrices.png')
+        plt.show()
         
         
+        
+        plt.figure()
+        plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
+        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Rforest Receiver Operating Characteristic (ROC)')
+        plt.legend(loc='lower right')
+        plt.savefig('Rforest_roc_curve.png')
+        plt.show()
+        
+        print('Rforest Test Accuracy:', test_accuracy)
+        print('Rforest Train Accuracy:',train_acc)
+        print('Rforest Train Precision:', train_precision)
+        print('Rforest Test Precision:',test_precision)
+        print('Rforest Train Sensitivity:',train_sensitivity)
+        print('Rforest Test Sensitivity:',test_sensitivity)
+        
+        return model,best_params,test_accuracy
+    
+    def latent_forest(self,encoder,best_rf_model,x_train,y_train,x_test,y_test):
+        """
+       Train and evaluate the random forest classifier using latent representations.
+       
+       Args:
+           encoder: Encoder model for obtaining latent representations.
+           best_rf_model: Best random forest model obtained from previous training.
+           x_train (array_like): Training data features.
+           y_train (array_like): Training data labels.
+           x_test (array_like): Test data features.
+           y_test (array_like): Test data labels.
+       
+       Returns:
+           best_rf_model: Trained random forest model.
+           test_accuracy: Accuracy of the model on the test data.
+       """
+        
+        x_train = x_train.reshape(x_train.shape[0],-1)
+        x_test = x_test.reshape(x_test.shape[0],-1)
+        x_train_tens,x_test_tens = torch.tensor(x_train),torch.tensor(x_test)
+        print(x_train_tens.shape)
+        z_mean,_, z_train = encoder(x_train_tens)
+        
+        z_train = np.asarray(z_train.detach())
+        
+        best_rf_model.fit(z_train,y_train)
+        
+        train_pred = best_rf_model.predict(z_train)
+        train_acc = accuracy_score(y_train,train_pred)
+        
+        z_m,_,z_test = encoder(x_test_tens)
+        
+        z_test= np.asarray(z_test.detach())
+        
+        test_pred = best_rf_model.predict(z_test)
+        test_accuracy = accuracy_score(y_test, test_pred)
+        
+        train_labels = np.argmax(y_train,axis =1)
+        train_pred_labels = np.argmax(train_pred,axis =1 )
+        
+        test_labels = np.argmax(y_test,axis=1)
+        pred_labels = np.argmax(test_pred,axis=1)
+        
+        test_conf = confusion_matrix(test_labels, pred_labels)
+        train_conf = confusion_matrix(train_labels, train_pred_labels)
+        
+        train_precision = precision_score(train_labels, train_pred_labels, average=None)
+        train_sensitivity = recall_score(train_labels, train_pred_labels, average=None)
+        
+        test_precision = precision_score(test_labels, pred_labels,average =None)
+        test_sensitivity = recall_score(test_labels, pred_labels, average=None)
+        
+        fpr, tpr, thresholds = roc_curve(y_test.ravel(), test_pred.ravel())
+        roc_auc = auc(fpr, tpr)
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2)
+
+        sns.heatmap(test_conf, annot=True, cmap='magma', xticklabels=['light', 'moderate', 'normal', 'severe'], yticklabels=['light', 'moderate', 'normal', 'severe'], ax=ax1)
+        ax1.set_title('Test Confusion Matrix')
+        ax1.set_xlabel('Predicted Label')
+        ax1.set_ylabel('True Label')
+        
+        sns.heatmap(train_conf, annot=True, cmap='vlag', xticklabels=['light', 'moderate', 'normal', 'severe'], yticklabels=['light', 'moderate', 'normal', 'severe'], ax=ax2)
+        ax2.set_title('Train Confusion Matrix')
+        ax2.set_xlabel('Predicted Label')
+        ax2.set_ylabel('True Label')
+        
+        plt.tight_layout()
+        plt.savefig('latentforest_confusion_matrices.png')
+        plt.show()
+        
+        
+        
+        plt.figure()
+        plt.plot(fpr, tpr, color='darkorange', lw=2, label='ROC curve (area = %0.2f)' % roc_auc)
+        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('LatentForest Receiver Operating Characteristic (ROC)')
+        plt.legend(loc='lower right')
+        plt.savefig('latentforest_roc_curve.png')
+        plt.show()
+        
+        print('LatentForest Test Accuracy:', test_accuracy)
+        print('LatentForest Train Accuracy:',train_acc)
+        print('LatentForest Train Precision:', train_precision)
+        print('LatentForest Test Precision:',test_precision)
+        print('LatentForest Train Sensitivity:',train_sensitivity)
+        print('LatentForest Test Sensitivity:',test_sensitivity)
+        
+        return best_rf_model,test_accuracy
+        
+#%%
+class SVClassifier:
+    
+    def __init__(self, encoder):
+        self.encoder = encoder
+        self.classifier = SVC()
+    
+    def train(self,x_train,y_train,x_test,y_test):
+        
+        x_train,x_test = x_train.reshape(x_train.shape[0],-1),x_test.reshape(x_test.shape[0],-1)
+        train_labels_1d,test_labels_1d= np.argmax(y_train,axis=1), np.argmax(y_test,axis=1)
+        
+        self.classifier.fit(x_train,train_labels_1d)
+        
+        train_pred = self.classifier.predict(x_train)
+        test_pred = self.classifier.predict(x_test)
+        
+        train_accuracy = accuracy_score(train_labels_1d, train_pred)
+        test_accuracy = accuracy_score(test_labels_1d, test_pred)
+        
+        #train_pred_1d = np.argmax(train_pred,axis=1)
+        #test_pred_1d = np.argmax(test_pred,axis=1)
+        
+        test_confusion_mat = confusion_matrix(test_labels_1d, test_pred)
+        train_confusion_mat = confusion_matrix(train_labels_1d, train_pred)
+        
+        train_precision = precision_score(train_labels_1d, train_pred, average=None)
+        train_sensitivity = recall_score(train_labels_1d, train_pred, average=None)
+        
+        test_precision = precision_score(test_labels_1d, test_pred, average=None)
+        test_sensitivity = recall_score(test_labels_1d, test_pred, average=None)
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2)
+
+        sns.heatmap(test_confusion_mat, annot=True, cmap='magma', xticklabels=['light', 'moderate', 'normal', 'severe'], yticklabels=['light', 'moderate', 'normal', 'severe'], ax=ax1)
+        ax1.set_title('Test Confusion Matrix')
+        ax1.set_xlabel('Predicted Label')
+        ax1.set_ylabel('True Label')
+        
+        sns.heatmap(train_confusion_mat, annot=True, cmap='vlag', xticklabels=['light', 'moderate', 'normal', 'severe'], yticklabels=['light', 'moderate', 'normal', 'severe'], ax=ax2)
+        ax2.set_title('Train Confusion Matrix')
+        ax2.set_xlabel('Predicted Label')
+        ax2.set_ylabel('True Label')
+        
+        plt.tight_layout()
+        plt.savefig('svc_confusion_matrices.png')
+        plt.show()
+        
+        print('SVC Test Accuracy:', test_accuracy)
+        print('SVC Train Accuracy:',train_accuracy)
+        print('SVC Train Precision:', train_precision)
+        print('SVC Test Precision:',test_precision)
+        print('SVC Train Sensitivity:',train_sensitivity)
+        print('SVC Test Sensitivity:',test_sensitivity)
+        
+        
+        
+    def latent_train(self, train_data, train_labels):
+        
+        latent_train = self.encode(train_data)
+        
+        train_labels_1d = np.argmax(train_labels, axis=1)
+
+        self.classifier.fit(latent_train, train_labels_1d)
+
+    def latent_test(self, test_data, test_labels):
+        
+        latent_test = self.encode(test_data)
+        predictions = self.classifier.predict(latent_test)
+        
+        test_labels_1d = np.argmax(test_labels,axis =1 )
+        
+        accuracy = accuracy_score(test_labels_1d, predictions)
+        
+        confusion_mat = confusion_matrix(test_labels_1d, predictions)
+        precision = precision_score(test_labels_1d, predictions, average=None)
+        sensitivity = recall_score(test_labels_1d, predictions, average=None)
+        
+        print('LatentSVC Test Accuracy of SVM:',accuracy)
+        print('LatentSVC Precision Scores of SVM :',precision)
+        print('LatentSVC Sensitivity of SVM:',sensitivity)
+        
+        return accuracy, confusion_mat, precision, sensitivity
+        
+
+    def encode(self, data):
+        data = data.reshape(data.shape[0],-1)
+        data= torch.tensor(data)
+        with torch.no_grad():
+            z_mean, _, z = self.encoder(data)
+        return z.cpu().numpy()
+    
+    def plot_metrics(self, confusion_mat, precision, sensitivity):
+        # Plot confusion matrix
+        plt.figure(figsize=(8, 6))
+        sns.heatmap(confusion_mat, annot=True, cmap='Blues', fmt='g',xticklabels=['light', 'moderate', 'normal', 'severe'], yticklabels=['light', 'moderate', 'normal', 'severe'])
+        plt.title('Confusion Matrix')
+        plt.xlabel('Predicted')
+        plt.ylabel('Actual')
+        plt.show()
+        plt.savefig('LatentSVC_confusion_matrix.png')
+        
+        # Plot precision
+        plt.figure(figsize=(8, 6))
+        plt.bar(np.arange(len(precision)), precision, color='skyblue')
+        plt.title('Precision')
+        plt.xlabel('Class')
+        plt.ylabel('Precision Score')
+        plt.xticks(np.arange(len(precision)))
+        plt.show()
+        plt.savefig('LatentSVC_Precision.png')
+
+        # Plot sensitivity
+        plt.figure(figsize=(8, 6))
+        plt.bar(np.arange(len(sensitivity)), sensitivity, color='salmon')
+        plt.title('Sensitivity')
+        plt.xlabel('Class')
+        plt.ylabel('Sensitivity Score')
+        plt.xticks(np.arange(len(sensitivity)))
+        plt.show()
+        plt.savefig('LatentSVC_Sensitivity.png')
         
         
 #%% Load preprocessed data.  This is the raw data contained in the .edf files after bandpass filtering and application of ICA
 
-def load_data_epoch_anxiety_levels(directory ,subjects ,electrodes):
-   '''
-   Assumption: data from the .mat files
-   Description:  Draft
+def load_data_epoch_anxiety_levels(directory, subjects):
+    '''
+    Assumption: data from the .mat files
+    Description:  Draft
       
-   Two methods of getting at the eeg data contained in the dataset: list, and nimpy array.
-   The numpy array is perfrered method
-   #TODO do I have the correct interpretation from our readme file , and the excel file?
+    Two methods of getting at the eeg data contained in the dataset: list, and numpy array.
+    The numpy array is the preferred method.
+    #TODO do I have the correct interpretation from our readme file, and the excel file?
 
-   ds_arr; size [trials x samples x electrodes]; This is the processed 15 second eeg data from the 12 trials (6 situation* 2 runs) and 23 subjects
-   Processed by ICA artifact removal and bandpass filtered. 
+    ds_arr; size [trials x samples x electrodes]; This is the processed 15-second EEG data from the 12 trials (6 situations * 2 runs) and 23 subjects.
+    Processed by ICA artifact removal and bandpass filtered. 
 
-   labels: Two columns for the subject Self-Assessment Manikin (SAM). One column is an event's positive or negative score for valence, 
-   and the other is the arousal spectrum, from calmness to excitement. A combination of these two scores establishes anxiety levels. 
-   #After transpose of the loaded row infromation 
+    labels: Two columns for the subject Self-Assessment Manikin (SAM). One column is an event's positive or negative score for valence, 
+    and the other is the arousal spectrum, from calmness to excitement. A combination of these two scores establishes anxiety levels. 
+    #After transpose of the loaded row information.
     
     Parameters
     ----------
-    directory : TYPE, 
-        DESCRIPTION. 
-    subjects : TYPE, 
-        DESCRIPTION. 
+    directory : str
+        Path to the directory containing the data files.
+    subjects : list
+        List of subject identifiers.
 
     Returns
     -------
-    ds_arr : TYPE
-        DESCRIPTION.
-    count : TYPE
-        DESCRIPTION.
-    label_array : TYPE
-        DESCRIPTION.
-
+    subjects_df : dict
+        Dictionary containing DataFrame for each subject.
     '''
-    # count the anxiety levels 
-   #anxiety_levels = ['Severe','Moderate','Light','Normal']
-   
-    # The intention of this code is to replicate the labeling flow chart of Fig 5 ref [Asma Baghdadi]
-    
-   subjects_df = {}
-   counts = []
-   for index,subject in enumerate(subjects):
-        
-    
-    #filename = "DASPS_Database/Raw data.mat/S09.mat"   #DASPS_Database/Raw data.mat/S09.mat
-        #filename = f'DASPS_Database/Raw data.mat/S{subject}.mat'   
-        filename = f'{directory}//S{str(subject).rjust(2,"0") if subject < 10 else subject}.mat'
-        with h5py.File(filename, "r") as f:  #DASPS_Database/Raw data.mat/S09.mat
-        # Print all root level object names (aka keys) 
-        # these can be group or dataset names 
-            #print("Keys: %s" % f.keys())
-        # get first object name/key; may or may NOT be a group
+    subjects_df = {}
+    counts = []
+    for index, subject in enumerate(subjects):
+        filename = f'{directory}//S{str(subject).rjust(2, "0") if subject < 10 else subject}.mat'
+        with h5py.File(filename, "r") as f:
             a_group_key = list(f.keys())[0]
-    
-        # get the object type for a_group_key: usually group or dataset
-            #print(type(f[a_group_key])) 
-    
-        # If a_group_key is a group name, 
-        # this gets the object names in the group and returns as a list
-            #data = list(f[a_group_key])
             data = f['data'][:]
+            labels = f['labels'][:]
+            df, count_tuple = labelling(data, labels)
             
-  
-        # preferred methods to get dataset values:
-            ds_obj = f[a_group_key]      # returns as a h5py dataset object
-            ds_arr = f[a_group_key][()]  # returns as a numpy array 
-    
-            #labels = list(h5py.File(filename, "r")['labels'])
-            
-            labels= f['labels'][:]
-            
-            df,count_tuple = labelling(data,labels)
-            
-            if f'{subject}' in subjects_df.keys():
+            if f'subject' in subjects_df.keys():
                 subjects_df[f'subject'].append(df)
             else:
                 subjects_df[f'{subject}'] = df
                 
-            if len(counts) ==0:
+            if len(counts) == 0:
                 counts.append(count_tuple)
             else:
-                count= counts.pop()
-                updated_count = tuple(map(sum,zip(count,count_tuple)))
+                count = counts.pop()
+                updated_count = tuple(map(sum, zip(count, count_tuple)))
                 counts.append(updated_count)
-            
-   print(counts)
-   severe_count,moderate_count,light_count,normal_count = counts[0] 
-   print('severe count:',severe_count)
-   print('moderate_count:',moderate_count)
-   print('light_count:',light_count)
-   print('normal_count:',normal_count)
     
-   return subjects_df
+    #print(counts)
+    severe_count, moderate_count, light_count, normal_count = counts[0] 
+    print('severe count:', severe_count)
+    print('moderate_count:', moderate_count)
+    print('light_count:', light_count)
+    print('normal_count:', normal_count)
+    
+    return subjects_df
+
    
 
 #%%
 def plot_PSD (subject,electrodes,data, level,freq_band = [4,20], run = 1, sample_interval=15, fs =128):
     '''
-    Visualize the data Frequency Domain.  First subtract the mean then calculate the PSD, in (dB), for the defined interval.
-    
+    Visualizes the data Frequency Domain. First subtracts the mean then calculate the PSD, in (dB), for the defined interval.
+
     Parameters
     ----------
-    subject #TODO
-    electrodes #TODO
-    data : TYPE numpy array size [run,sampled data,electrode channel]
-        DESCRIPTION.
-    freq_band : TYPE, optional
-        DESCRIPTION. This specoicifies the start and end freq, in Hz, to be evaluated for PSD. The default is [1,20].
-    run : Type int, paradigm run of interest.  6 situations and 2 phases, recital, reall #TODO make this a an enumerate
-    channels : TYPE, optional #TODO need to make channels enumerate so that they can be selected
-        DESCRIPTION. The default is 14.
-    sample_interval : TYPE int time in seconds, optional
-        DESCRIPTION. This is the end time for the sample interval starting from 0 seconds. The default is 15 seconds.
-    fs#TODO
-    Returns 
-    -------
-    None.
+    subject : int
+        Subject identifier.
+    electrodes : list
+        List of electrode channels.
+    data : numpy array, shape [run, sampled data, electrode channel]
+        EEG data.
+    level : str
+        Level of anxiety.
+    freq_band : list, optional
+        Specifies the start and end frequency, in Hz, to be evaluated for PSD. The default is [4, 20].
+    run : int, optional
+        Paradigm run of interest. The default is 1.
+    sample_interval : int, optional
+        End time for the sample interval starting from 0 seconds. The default is 15 seconds.
+    fs : int, optional
+        Sampling frequency.
 
+    Returns
+    -------
+    PSD_band : numpy array
+        Power Spectral Density in the specified frequency band.
     '''
 #         alpha_band=np.zeros(14)
 #         high_beta_band=np.zeros(14)        

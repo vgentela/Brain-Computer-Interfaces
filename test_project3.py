@@ -114,16 +114,23 @@ assert directory.exists()
 #lectrodes =['AF3','AF4', 'FC5','FC6','P7','P8']
 #%%
 subjects = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23]
-df= load_data_epoch_anxiety_levels(directory ,subjects ,electrodes)
+df= load_data_epoch_anxiety_levels(directory ,subjects)
 #%%
-train_loader,test_loader= transformations(df,'autoencoder',[7/10,3/10],train_batch_size=10,test_batch_size=5)
+train_data,test_data= transformations(df,'autoencoder',[8/10,2/10])
 #%%
-len(train_loader),len(test_loader)
+x_train,y_train,x_test,y_test = transformations(df, 'randomforest',test_size=0.2)
 #%%
-optimizer = optim.Adam
-vae = train(optimizer,10,'cuda',train_loader)
+
+y_train
 #%%
-model, accs, tl,el = vae.training()
+#optimizer = optim.Adam
+vae = train([64,44],30,'cpu',train_data,0.0001,epochs=1200)
+#%%
+encoder,tl,el = vae.training()
+#%%
+clf =  latent_training(encoder,30, [25,10],4, train_data,'cpu')
+#%%
+classifier,accs,epoch_loss = clf.train()
 #print(len(se['eeg'][0][0][0][~np.isnan(se['eeg'][0][0][0])]))
 # TODO numbers do not match 
 # expected 
@@ -133,31 +140,26 @@ model, accs, tl,el = vae.training()
 #TODO looks like they combined Light Anxiety + Normal anxiety + Normal Low Arousal High Valence = 156?
 #TODO Why the descrepency with moderate?
 #%%
-subject=  10
-filename = f'{directory}S{subject}.mat'
-directory = 'DASPS_Database/Raw data.mat/'
-file = h5py.File(filename,'r')
+n_estimators =[300,500,700]
+criterion = "log_loss"
+max_depth = [5,10,15]
+class_weight = ['balanced']
+scoring = 'accuracy'
+rf = randomforest(n_estimators, criterion, max_depth,scoring)
 #%%
-
-
-#TODO plot the anxiety levels on the x-axis and the mean PSD on the y-axis
-
-#TODO this is not working yetplot_PSD_by_anxiety (subject, electrodes, anxiet_level, PSD_band ,run = 1)
-    
-#%% Feature Extraction 
-
-# Looks like some electrodes show alpha band and beta band power need to complete the visualization of anxiety to determine wht 
-# the best statistic would be
-
-# Based upon ref [] power between 0-20 Hz
-# Or it could be the diff in alpha band and beta band
-
-#%% Perform classification based on statistic in Feature Extraction
-# Need to identify a threshold
+model,best_params,accuracy = rf.r_forest(x_train, y_train, x_test, y_test)
+#%%
+best_rf_model,test_accuracy = rf.latent_forest(encoder, model, x_train, y_train, x_test, y_test)
+#%%
+svc= SVClassifier(encoder)
 
 #%% Create a confusion matrix based upon the above
+svc.train(x_train, y_train,x_test,y_test)
+#%%
+svc.latent_train(x_train,y_train)
 
-#%% Calculate statisticsw, accuracy, sensitivity and specificity.
+#%%
+accuracy, confusion_mat, precision, sensitivity= svc.latent_test(x_test, y_test)
 
 #%% Time permitting investigate bootstrapping to identify p-values...
- 
+svc.plot_metrics(confusion_mat, precision, sensitivity) 
