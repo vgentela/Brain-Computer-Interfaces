@@ -16,8 +16,8 @@ This function extracts EEG data and labels from .mat files in the specified dire
 ```
 For each subject, it constructs the filename based on the subject ID and reads the .edf file using `mne.io.read_raw_edf`. It extracts the raw EEG data and channel names from the loaded data. It retrieves metadata about the EEG data using `data_edf.info`.
 ```
-- The [project_3.py](project_3.py) contains various classes and functions necessary for performing data analysis and classification tasks.
-- The [test_project3.py](test_project_3.py) modules uses the classes and function from the project_3.py module to perform the data analysis, data preprocessing, data labelling and classification tasks.
+- The [project_3.py](project_3.py) contains various classes and functions necessary for performing data related tasks and classification tasks.
+- The [test_project3.py](test_project_3.py) modules uses the classes and function from the project_3.py module to perform the data analysis,data labelling, data preprocessing and classification tasks.
 
 **Notes:**
 - The Trials were performed with (12) 6 stimuli, in  2 stages (recitation, recall)
