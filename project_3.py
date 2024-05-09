@@ -19,11 +19,7 @@ Authors:
 # %%  Import Modules
 import plot_topo as pt
 import numpy as np
-
-# TODO #c:\users\18023\anaconda3\lib\site-packages
 import h5py
-
-# import seaborn as sb
 import matplotlib.pyplot as plt
 import seaborn as sns
 import mne as mne
@@ -53,25 +49,31 @@ from sklearn.svm import SVC
 
 
 def loadedf(directory, subjects):
-    """
-    Load EDF data for specified subjects.
+    '''
+    Load EEG data from .edf files using MNE (a Python package for EEG/MEG data analysis)
+    
+    For each subject, it constructs the filename based on the subject ID and reads the .edf file using mne.io.read_raw_edf.
+    It extracts the raw EEG data and channel names from the loaded data.
+    It retrieves metadata about the EEG data using data_edf.info.
 
     Parameters
     ----------
-    directory : str
-        Path to the directory containing the EDF data files.
-    subjects : list
-        List of subject identifiers.
+    directory : TYPE str
+        The directory where the .edf files are located.
+    subjects : TYPE list
+        A list of subject IDs,  Note: Only the data from the last subject is returned.  
 
-    Returns
+    Returns Note:  Only information for the last subject on the list is returned.  This function was used to visualize the data.  
     -------
-    raw_data_edf : ndarray
-        Raw EDF data.
-    channels_edf : list
-        List of channel names.
-    info : Info
-        Information summary of the EDF data.
-    """
+    raw_data_edf : TYPE Array of float64: size [channels x samples]
+       EEG data as described by channels_edf
+    channels_edf : TYPE list: size 
+        Channels, markers, and other data such as gyroscope info to track subject movement.
+    info : TYPE : _fiff,meas_info.Info
+        Metadata included in the file and a list of all channels associated with the sampled data
+
+    '''
+
     subject = subjects
     for plot, subject in enumerate(subjects):
 
@@ -90,26 +92,32 @@ def loadedf(directory, subjects):
 
 
 def plot_edf_data(raw_data_edf, electrode_index=(2, 16), subjects=1, run=1, fs_edf=128):
-    """
-    Plot EDF data.
+    '''
+    This function plots EEG data in both time and frequency domains. Sumamry of functionality:
+        a) The loop starts from index 2, which is consistent with the channel indices in the raw_data_edf, 
+        and to ensure consistency of channel labeling subtracts 1 from the index 
+        b) Calculates the Power spectra 10 log(10), after subtracting the DC offset (mean))
+        c) The function saves the plots as images (Time_Domain_edf.png and Freq_Domain_edf.png) 
 
     Parameters
     ----------
-    raw_data_edf : ndarray
-        Raw EDF data.
-    electrode_index : tuple, optional
-        Tuple specifying the range of electrode channels to plot. The default is (2, 16).
-    subjects : int, optional
-        Subject identifier. The default is 1.
-    run : int, optional
-        Run identifier. The default is 1.
-    fs_edf : int, optional
-        Sampling frequency of the EDF data. The default is 128.
+    raw_data_edf : TYPE Array of float64: size [channels x samples]
+       EEG data as described by channels_edf.
+    electrode_index : TYPE tuple, optional
+        Upper and lower range of of electrodes to plot. The default is (2,16).
+    subjects : TYPE int, optional
+        Identifies the subject on the plot. The default is 1.
+    run : TYPE int, optional
+        Identifies the trial associated with the data for plot labeling purposes. The default is 1.
+    fs_edf : TYPE int, optional
+        DThe sampling frequency of the EEG data. The default is 128.
 
     Returns
     -------
     None.
-    """
+
+    '''
+
 
     plt.figure(num=200, figsize=(8, 6), clear=all)
     for index in range(2, 16):  # raw data valid eed electrode channels index 2 - 15
@@ -174,34 +182,37 @@ def plot_scalp_map(
     method="mean",
     domain="time",
 ):
-    """
-    Plot scalp map.
+    '''
+   This function plots scalp maps of the provided EEG data 
+       a) Depending on the data_type, calculates the scalp map differently. If the data is from a .mat file, 
+        it calculates the mean across samples for the specified run. If the data is from a .edf file, 
+        it calculates the mean across all electrodes.
+       b) After plotting saves the data as an .png image 
 
     Parameters
     ----------
-    subject : str
-        Subject identifier.
-    electrodes : array_like
-        Electrode locations.
-    data : ndarray
-        Data to plot.
-    title : str
-        Title of the plot.
-    fig_num : int
-        Figure number for the plot.
-    data_type : str, optional
-        Type of data. The default is '.edf'.
-    run : int, optional
-        Run number. The default is 1.
-    method : str, optional
-        Method used for plotting. The default is 'mean'.
-    domain : str, optional
-        Domain of the data. The default is 'time'.
+    subject : TYPE int
+        Subject ID
+    electrodes : TYPE list size =14
+        Electrodes to be included in the scalp map
+    data : TYPE Array of float64 size [ electrode channels x samples]
+        EEG data used teo create scalp map.
+    data_type : TYPE str, optional
+        Type of data, either '.mat' or '.edf'. The default is '.edf'.
+    run : TYPE int, optional
+        DESCRIPTION. Protocol per subject consists of 6 situations composed of a recital phase followed
+        by a recall phase. In this data set run is a number from 1 to (6 x 2), i.e 1 -12.  The default is 1.
+        This para str, optional
+        DProcessing of the data prior to plotting . The default is 'mean'.
+    domain : TYPE str, optional
+        Time domain of frequency domain, for inclusion on the plot title The default is 'time'.
 
     Returns
     -------
     None.
-    """
+
+    '''
+
     # Plot time average for a giving subject, situation
     plt.figure(num=fig_num, clear=all)
     if method == "mean":
@@ -233,7 +244,7 @@ def plot_scalp_map(
     plt.savefig("Scalp_Map.png")
     # ....then show
     plt.show()
-    return
+    return None
 
 
 # %% Clear figures
@@ -281,7 +292,7 @@ def labelling(data, labels):
     light_count = 0
     normal_count = 0
 
-    # assign labels to dataframe using the conditons
+    # assign labels to dataframe using the labelling conditons
     for idx, index in enumerate(label_indices):
         # print(index)
         df.at[index, "valence"] = labels[idx][0]
@@ -350,8 +361,10 @@ def transformations(df, model, split_ratio=None, test_size=None):
         normalized_eeg = eeg_data.apply(
             lambda x: (x - np.mean(x)) / np.std(x), axis=1
         ).to_numpy()
+        # Reshaping the normalized eeg for training
         normalized_eeg = normalized_eeg.reshape(12, 1920, 14)
-
+        
+        # Extracting labels from the dataframe
         anxiety_degree = df[f"{key}"]["Anxiety_level"][
             ~pd.isna(df[f"{key}"]["Anxiety_level"])
         ]
@@ -419,6 +432,40 @@ def transformations(df, model, split_ratio=None, test_size=None):
     else:
         # Raise an exception if model is neither "autoencoder" nor "randomforest"
         raise Exception("please choose either autoencoder or randomforest")
+#%%
+def calculate_specificity_rf(confusion_mat):
+    """
+   Calculate the specificity for each class in a multiclass confusion matrix.
+
+   Parameters:
+   -----------
+   confusion_mat : numpy.ndarray
+       The confusion matrix where each row represents the true labels and each column represents the predicted labels.
+
+   Returns:
+   --------
+   numpy.ndarray
+       An array containing the specificity for each class.
+
+   """
+     # Get the number of classes
+    num_classes = confusion_mat.shape[0]
+    
+    # Initialize an array to store specificity values
+    specificity = np.zeros(num_classes)
+    
+    # Calculate specificity for each class
+    for i in range(num_classes):
+        # Calculate the number of true negatives (TN) by summing the elements not in the ith row or column
+        true_negatives = np.sum(np.delete(np.delete(confusion_mat, i, axis=0), i, axis=1))
+        
+        # Calculate the number of false positives (FP) by summing the ith row excluding the ith element
+        false_positives = np.sum(np.delete(confusion_mat[i, :], i))
+        
+        # Calculate specificity for the ith class using TN and FP
+        specificity[i] = true_negatives / (true_negatives + false_positives)
+        
+    return specificity
 
 
 # %%
@@ -613,6 +660,17 @@ class Loss:
 
     @staticmethod
     def kl_divergence(z_mean, log_var):
+        """
+    Calculate the Kullback-Leibler divergence.
+
+    Args:
+        z_mean (Tensor): Mean of the latent space.
+        log_var (Tensor): Log variance of the latent space.
+
+    Returns:
+        Tensor: Kullback-Leibler divergence.
+
+    """
         return (
             -0.5
             * torch.sum(1 + log_var - z_mean.pow(2) - torch.exp(log_var), dim=1).mean()
@@ -620,10 +678,32 @@ class Loss:
 
     @staticmethod
     def reconstruction_loss(x_reconstructed, x):
+        """
+    Calculate the reconstruction loss using mean squared error.
+
+    Args:
+        x_reconstructed (Tensor): Reconstructed data.
+        x (Tensor): True data.
+
+    Returns:
+        Tensor: Reconstruction loss.
+
+    """
         return nn.MSELoss()(x_reconstructed, x)
 
     @staticmethod
     def classification_loss(y_pred, y_true):
+        """
+       Calculate the classification loss using binary cross-entropy.
+    
+       Args:
+           y_pred (Tensor): Predicted labels.
+           y_true (Tensor): True labels.
+    
+       Returns:
+           Tensor: Classification loss.
+
+       """
         return nn.BCELoss()(y_pred, y_true)
 
     def vae_loss(self, pred, true):
@@ -732,15 +812,12 @@ class train:
         # init lists for storing vars
         train_loss = []
         epoch_loss = []
-        accs = []
-        classification_loss = []
 
         # iterate over dataset epochs and batches
         for epoch in range(self.epochs):
             vae.to(self.device)
-            vae.train()
-            correct = 0
-            total_samples = 0
+            vae.train() # Put the autoencoder in train mode
+
             for batch_id, (data, target) in enumerate(self.train_loader):
                 data = data.to(self.device)
                 target = target.to(self.device)
@@ -769,7 +846,9 @@ class train:
             print("Beginning Epoch", epoch)
             print("Average Combined Loss:", np.mean(epoch_loss[-1]))
             print("----------------------------------------------------------------")
-
+            
+            # Early stopping if needed
+            
             """if loss.item() < self.best_loss:
                 self.best_loss = loss.item()
                 self.counter = 0
@@ -778,15 +857,18 @@ class train:
                 if self.counter >= self.patience:
                     print(f'Early stopping at epoch {epoch}')
                     break"""
+                    
         # plot and save train loss
         plt.figure(figsize=(10, 6))
         plt.plot(list(range(self.epochs)), epoch_loss, label="Loss")
         plt.legend()
         plt.title("VAE Training")
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
         plt.tight_layout()
         plt.show()
         plt.savefig("encoder_acc_loss.png")
-        return encoder, train_loss, epoch_loss
+        return encoder,decoder, train_loss, epoch_loss
 
 
 # %%
@@ -858,10 +940,10 @@ class latent_training:
         # init opt
         optimizer = optim.Adam(self.classifier.parameters(), lr=self.lr)
 
-        # move classifier to correct
+        # move classifier to device
         self.classifier.to(self.device)
-        self.encoder.eval()
-        self.classifier.train()
+        self.encoder.eval()  # Put the encoder in the eval mode
+        self.classifier.train() # Put the classifier in the train mode 
 
         # iterate over epochs and then batches
         for epoch in range(self.epochs):
@@ -913,6 +995,8 @@ class latent_training:
         # plot train loss and save
         plt.figure(figsize=(10, 6))
         plt.plot(list(range(self.epochs)), epoch_loss, label="Loss")
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
         plt.legend()
         plt.tight_layout()
         plt.show()
@@ -988,7 +1072,11 @@ class randomforest:
         pred_labels = np.argmax(test_pred, axis=1)
         test_conf = confusion_matrix(test_labels, pred_labels)
         train_conf = confusion_matrix(train_labels, train_pred_labels)
-
+        
+        # Compute Specificities
+        test_specificity =calculate_specificity_rf(test_conf)
+        train_specificity =calculate_specificity_rf(train_conf)
+        
         # Compute ROC curve and area under the curve
         fpr, tpr, thresholds = roc_curve(y_test.ravel(), test_pred.ravel())
         roc_auc = auc(fpr, tpr)
@@ -1055,7 +1143,9 @@ class randomforest:
         print("Rforest Test Precision:", test_precision)
         print("Rforest Train Sensitivity:", train_sensitivity)
         print("Rforest Test Sensitivity:", test_sensitivity)
-
+        print("Rforest Test Specificity:",test_specificity)
+        print('Rforest Train Specificity:"',train_specificity)
+        
         return model, best_params, test_accuracy
 
     def latent_forest(self, encoder, best_rf_model, x_train, y_train, x_test, y_test):
@@ -1105,7 +1195,11 @@ class randomforest:
         pred_labels = np.argmax(test_pred, axis=1)
         test_conf = confusion_matrix(test_labels, pred_labels)
         train_conf = confusion_matrix(train_labels, train_pred_labels)
-
+        
+        # Compute Specificities
+        test_specificity =calculate_specificity_rf(test_conf)
+        train_specificity =calculate_specificity_rf(train_conf)
+        
         # Compute precision and sensitivity scores
         train_precision = precision_score(train_labels, train_pred_labels, average=None)
         train_sensitivity = recall_score(train_labels, train_pred_labels, average=None)
@@ -1173,7 +1267,9 @@ class randomforest:
         print("LatentForest Test Precision:", test_precision)
         print("LatentForest Train Sensitivity:", train_sensitivity)
         print("LatentForest Test Sensitivity:", test_sensitivity)
-
+        print("Latentforest Test Specificity:",test_specificity)
+        print('Latentforest Train Specificity:"',train_specificity)
+        
         return best_rf_model, test_accuracy
 
 
@@ -1229,7 +1325,11 @@ class SVClassifier:
         # Compute confusion matrices
         test_confusion_mat = confusion_matrix(test_labels_1d, test_pred)
         train_confusion_mat = confusion_matrix(train_labels_1d, train_pred)
-
+        
+        # Compute Specificities
+        test_specificity =calculate_specificity_rf(test_confusion_mat)
+        train_specificity =calculate_specificity_rf(train_confusion_mat)
+        
         # Compute precision and sensitivity scores
         train_precision = precision_score(train_labels_1d, train_pred, average=None)
         train_sensitivity = recall_score(train_labels_1d, train_pred, average=None)
@@ -1273,7 +1373,9 @@ class SVClassifier:
         print("SVC Test Precision:", test_precision)
         print("SVC Train Sensitivity:", train_sensitivity)
         print("SVC Test Sensitivity:", test_sensitivity)
-
+        print("SVC Test Specificity:",test_specificity)
+        print('SVC Train Specificity:"',train_specificity)
+        
     def latent_train(self, train_data, train_labels):
         """
         Train the support vector classifier using latent representations.
@@ -1283,11 +1385,12 @@ class SVClassifier:
             train_labels (array_like): Training data labels.
         """
 
-        latent_train = self.encode(train_data)
-
-        train_labels_1d = np.argmax(train_labels, axis=1)
-
-        self.classifier.fit(latent_train, train_labels_1d)
+        latent_train = self.encode(train_data) # Extract the latent features
+ 
+        train_labels_1d = np.argmax(train_labels, axis=1) # Convert the labels to 1 dimension
+        
+        # Train the classifier on latent data
+        self.classifier.fit(latent_train, train_labels_1d) 
 
     def latent_test(self, test_data, test_labels):
         """
@@ -1315,10 +1418,15 @@ class SVClassifier:
         confusion_mat = confusion_matrix(test_labels_1d, predictions)
         precision = precision_score(test_labels_1d, predictions, average=None)
         sensitivity = recall_score(test_labels_1d, predictions, average=None)
+        
+        # Compute Specificities
+        test_specificity =calculate_specificity_rf(confusion_mat)
 
+    
         print("LatentSVC Test Accuracy of SVM:", accuracy)
         print("LatentSVC Precision Scores of SVM :", precision)
         print("LatentSVC Sensitivity of SVM:", sensitivity)
+        print("LatentSVC Test Specificity:",test_specificity)
 
         return accuracy, confusion_mat, precision, sensitivity
 
@@ -1339,9 +1447,9 @@ class SVClassifier:
         # encode it
         with torch.no_grad():
             z_mean, _, z = self.encoder(data)
-        return z.cpu().numpy()
+        return z.cpu().numpy() # Return it as a numpy array
 
-    def plot_metrics(self, confusion_mat, precision, sensitivity):
+    def plot_metrics(self, confusion_mat):
         """
         Plot evaluation metrics including confusion matrix, precision, and sensitivity.
 
@@ -1367,25 +1475,6 @@ class SVClassifier:
         plt.show()
         plt.savefig("LatentSVC_confusion_matrix.png")
 
-        # Plot precision
-        plt.figure(figsize=(8, 6))
-        plt.bar(np.arange(len(precision)), precision, color="skyblue")
-        plt.title("Precision")
-        plt.xlabel("Class")
-        plt.ylabel("Precision Score")
-        plt.xticks(np.arange(len(precision)))
-        plt.show()
-        plt.savefig("LatentSVC_Precision.png")
-
-        # Plot sensitivity
-        plt.figure(figsize=(8, 6))
-        plt.bar(np.arange(len(sensitivity)), sensitivity, color="salmon")
-        plt.title("Sensitivity")
-        plt.xlabel("Class")
-        plt.ylabel("Sensitivity Score")
-        plt.xticks(np.arange(len(sensitivity)))
-        plt.show()
-        plt.savefig("LatentSVC_Sensitivity.png")
 
 
 # %% Load preprocessed data.  This is the raw data contained in the .edf files after bandpass filtering and application of ICA
@@ -1393,30 +1482,33 @@ class SVClassifier:
 
 def load_data_epoch_anxiety_levels(directory, subjects):
     """
-    Assumption: data from the .mat files
+    Load EEG data and corresponding labels from .mat files.
 
-    Two methods of getting at the eeg data contained in the dataset: list, and numpy array.
-    The numpy array is the preferred method.
-
-
-    ds_arr; size [trials x samples x electrodes]; This is the processed 15-second EEG data from the 12 trials (6 situations * 2 runs) and 23 subjects.
-    Processed by ICA artifact removal and bandpass filtered.
-
-    labels: Two columns for the subject Self-Assessment Manikin (SAM). One column is an event's positive or negative score for valence,
-    and the other is the arousal spectrum, from calmness to excitement. A combination of these two scores establishes anxiety levels.
-    #After transpose of the loaded row information.
+    This function extracts EEG data and labels from .mat files in the specified directory. The EEG data is stored in a dictionary with DataFrames for each subject.
 
     Parameters
     ----------
     directory : str
-        Path to the directory containing the data files.
+        Path to the directory containing the .mat data files.
     subjects : list
         List of subject identifiers.
 
     Returns
     -------
     subjects_df : dict
-        Dictionary containing DataFrame for each subject.
+        A dictionary containing DataFrames for each subject.
+
+    Assumptions
+    -----------
+    - EEG data is stored in .mat files.
+    - The data is organized as trials x samples x electrodes.
+    - Two columns in the labels represent valence and arousal spectrum.
+
+    Notes
+    -----
+    - EEG data is preprocessed using ICA artifact removal and bandpass filtering.
+    - The labelling function calculates the counts for different anxiety levels.
+
     """
 
     subjects_df = {}
@@ -1427,14 +1519,16 @@ def load_data_epoch_anxiety_levels(directory, subjects):
 
         # Load the .mat file
         with h5py.File(filename, "r") as f:
-            a_group_key = list(f.keys())[0]
+            #a_group_key = list(f.keys())[0]
             data = f["data"][:]
             labels = f["labels"][:]
-            df, count_tuple = labelling(data, labels)
+            
+            # Returns the dataframe and the anxiety degree counts from the labelling function
+            df, count_tuple = labelling(data, labels) 
 
             # Append DataFrame to the dictionary
-            if f"subject" in subjects_df.keys():
-                subjects_df[f"subject"].append(df)
+            if f"{subject}" in subjects_df.keys():
+                subjects_df[f"{subject}"].append(df)
             else:
                 subjects_df[f"{subject}"] = df
             # Update counts for each anxiety level
@@ -1500,7 +1594,7 @@ def plot_PSD(
     plt.figure(
         num=subject + 51, figsize=(8, 6), clear=all
     )  # 51 is arbritrary This should result in fig 51 being associated with subject 01, Sub 23 Fig 73
-    # TODO channels=14 to electrode enumerate
+   
 
     # initialize the power in frequecy band to zereo
     PSD_band = np.zeros(len(electrodes))
@@ -1517,7 +1611,7 @@ def plot_PSD(
 
     for electrode_index, electrode in enumerate(
         electrodes
-    ):  # TODO change from all "14" to channels
+    ): 
         print(electrode_index, electrode)
         # Calculate and plot the entire PSD
         # PSD = np.real(10*np.log10((np.fft.rfft(data[trial,0:sample_index,channel]))**2)) # imaginary part = 0, extract real to avoid warnings #TODO delete this reference
@@ -1550,7 +1644,7 @@ def plot_PSD(
         )  # 4 to 20 Hz  # Remeber that the raw data is BP filtered 4 to 45 hz.
     plt.tight_layout()
     # Save figure
-    plt.savefig(f"PSD_subject{subject}.png")  # TODO Light Severe
+    plt.savefig(f"PSD_subject{subject}.png")  
     # ....then show
     plt.show()
     return PSD_band
