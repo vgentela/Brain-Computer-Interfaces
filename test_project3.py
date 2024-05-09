@@ -286,7 +286,7 @@ def encoder_test(encoder,decoder,epochs,test_data):
     plt.legend()
     plt.tight_layout()
     plt.title('VAE Testing')
-    plt.savefig('vae_training.png')
+    plt.savefig('vae_testing.png')
     plt.show()
     
     # Print the final epoch loss and accuracy    
