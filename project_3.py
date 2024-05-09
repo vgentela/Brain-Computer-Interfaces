@@ -54,23 +54,24 @@ from sklearn.svm import SVC
 
 def loadedf(directory, subjects):
     """
+    Load EDF data for specified subjects.
 
     Parameters
     ----------
-    file : TYPE, optional
-        DESCRIPTION. The default is file.
+    directory : str
+        Path to the directory containing the EDF data files.
+    subjects : list
+        List of subject identifiers.
 
     Returns
     -------
-    raw_data_edf : TYPE
-        DESCRIPTION.
-    channels_edf : TYPE
-        DESCRIPTION.
-    info : TYPE
-        DESCRIPTION.
-
+    raw_data_edf : ndarray
+        Raw EDF data.
+    channels_edf : list
+        List of channel names.
+    info : Info
+        Information summary of the EDF data.
     """
-
     subject = subjects
     for plot, subject in enumerate(subjects):
 
@@ -90,20 +91,24 @@ def loadedf(directory, subjects):
 
 def plot_edf_data(raw_data_edf, electrode_index=(2, 16), subjects=1, run=1, fs_edf=128):
     """
+    Plot EDF data.
 
     Parameters
     ----------
-    raw_data_edf : TYPE
-        DESCRIPTION.
-    electrode_index : TYPE, optional
-        DESCRIPTION. The default is (2,16).
-    fs_edf : TYPE, optional
-        DESCRIPTION. The default is 128.
+    raw_data_edf : ndarray
+        Raw EDF data.
+    electrode_index : tuple, optional
+        Tuple specifying the range of electrode channels to plot. The default is (2, 16).
+    subjects : int, optional
+        Subject identifier. The default is 1.
+    run : int, optional
+        Run identifier. The default is 1.
+    fs_edf : int, optional
+        Sampling frequency of the EDF data. The default is 128.
 
     Returns
     -------
     None.
-
     """
 
     plt.figure(num=200, figsize=(8, 6), clear=all)
@@ -170,33 +175,33 @@ def plot_scalp_map(
     domain="time",
 ):
     """
-
+    Plot scalp map.
 
     Parameters
     ----------
-    subject : TYPE
-        DESCRIPTION.
-    electrodes : TYPE
-        DESCRIPTION.
-    data : TYPE
-        DESCRIPTION.
-    data_type : TYPE, optional
-        DESCRIPTION. The default is '.edf'.
-    run : TYPE, optional
-        DESCRIPTION. #TODO  paradigm per subject consists of 6 situations composed of a recital phase followed
-        by a recall phase. In this data set run is a number from 1 to (6 x 2), i.e 1 -12.  The default is 1.
-        This paramater is used for labeling of the plot.
-    method : TYPE, optional
-        DESCRIPTION. The default is 'mean'.
-    domain : TYPE, optional
-        DESCRIPTION. The default is 'time'.
+    subject : str
+        Subject identifier.
+    electrodes : array_like
+        Electrode locations.
+    data : ndarray
+        Data to plot.
+    title : str
+        Title of the plot.
+    fig_num : int
+        Figure number for the plot.
+    data_type : str, optional
+        Type of data. The default is '.edf'.
+    run : int, optional
+        Run number. The default is 1.
+    method : str, optional
+        Method used for plotting. The default is 'mean'.
+    domain : str, optional
+        Domain of the data. The default is 'time'.
 
     Returns
     -------
     None.
-
     """
-
     # Plot time average for a giving subject, situation
     plt.figure(num=fig_num, clear=all)
     if method == "mean":
