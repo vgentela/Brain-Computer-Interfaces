@@ -24,6 +24,7 @@ For each subject, it constructs the filename based on the subject ID and reads t
 - electrodes: 14 (+2 references) sensors placed at this locations: AF3, F7, F3, FC5, T7, P7, O1, O2, P8, T8, FC6, F4, F8, AF4 with a sampling rate of 128 SPS (2048 Hz internal) and a resolution of 14 bits 1 LSB = 0.51μV. Emotiv Epoc is a wireless device with 2.4GHz band.
 - A 4-45 hz Finite impulse response (FIR) pass-band filter was applied to the raw data
 -The Automatic Artifact removal for EEGLAB toolbox (AAR) was used to remove EOG and EMG artifacts.
+- Find the dataset here :[DASPS](https://doi.org/10.48550/arXiv.1901.02942)
 
 **Fixes**
 - Issue with the colorbar of scalp maps: the scalp maps generate an empty figure and a figure with content.(This should be fixed).
